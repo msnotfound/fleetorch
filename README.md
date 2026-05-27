@@ -62,11 +62,11 @@ go install github.com/msnotfound/fleetorch/cmd/fleetorch@latest
    my-task  claude-sonnet  RUNNING  12/150 $0.45   2026-05-27 14:00
    ```
 
-3. **Follow live output:**
+3. **Attach to live PTY:**
    ```bash
    fleetorch attach my-task
    ```
-   *Streams the agent's output to your terminal as it runs. Press Ctrl-C to detach. (v0.1 is read-only; bidirectional PTY attach lands in v0.2.)*
+   *Drops into the agent's live terminal — anything you type is sent to the agent, output streams back. Detach with `Ctrl-] q`. Multiple terminals can attach to the same task simultaneously.*
 
 ---
 
@@ -121,8 +121,8 @@ graph TD
 | `spawn` | Create a new task and start an agent. |
 | `list` | Show all tracked tasks and their current status. |
 | `watch` | Snapshot or tail the logs of a specific task. |
-| `attach` | Follow a task's live output (read-only in v0.1). |
-| `dash` | Auto-refreshing status table (full bubbletea TUI in v0.2). |
+| `attach` | Drop into a task's live PTY (`--follow` for read-only log tail). |
+| `dash` | Interactive bubbletea TUI dashboard (`--plain` for an auto-refresh table). |
 | `kill` | Stop an agent and optionally clean up its worktree. |
 | `agent` | Manage agent-type plugins (list, add, remove). |
 | `config` | View or edit the global configuration. |
@@ -151,12 +151,12 @@ streams_freely = true
 
 ## Project Status
 
-**Current Version:** v0.1.0
+**Current Version:** v0.2.0
 
 *   **Linux/macOS:** Working. End-to-end smoke-tested.
-*   **Windows:** Beta. Cross-compiles cleanly via ConPTY (go-pty), but launch-day testing is limited.
-*   **Attach:** Read-only (follow log). Bidirectional PTY attach (typing to the agent) is planned for v0.2.
-*   **Dashboard:** Simple auto-refresh table. Full bubbletea TUI in v0.2.
+*   **Windows:** Beta. Cross-compiles cleanly via ConPTY (go-pty); broader testing welcome via issues.
+*   **Attach:** Bidirectional PTY via per-task Unix socket. Multiple clients can attach to the same task.
+*   **Dashboard:** Interactive bubbletea TUI (with `--plain` fallback for dumb terminals).
 *   **Plugins:** Manual TOML placement only; agent marketplace planned for v0.3.
 
 ---
