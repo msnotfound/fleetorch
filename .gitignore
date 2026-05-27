@@ -1,0 +1,23 @@
+# build artifacts
+/dist/
+/fleetorch
+*.exe
+*.test
+*.out
+
+# go
+/vendor/
+
+# editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# os
+.DS_Store
+Thumbs.db
+
+# local
+*.local.toml
+/tmp/
