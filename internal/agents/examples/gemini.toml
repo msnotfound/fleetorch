@@ -1,0 +1,9 @@
+name = "gemini"
+command = "gemini"
+args = ["--yolo"]
+prompt_arg = "{prompt}"
+default_budget_usd = 0
+default_turns = 0
+sandbox = "worktree"
+streams_freely = true
+notes = "Free tier eligible. 1M context. Sandboxes to cwd — pre-stage files before spawning."

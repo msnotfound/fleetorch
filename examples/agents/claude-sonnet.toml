@@ -1,0 +1,9 @@
+name = "claude-sonnet"
+command = "claude"
+args = ["-p", "--model", "sonnet", "--verbose", "--max-turns", "150", "--allowedTools", "Read,Edit,Write,Bash(git *),Bash(npm *),Bash(pnpm *),Bash(node *),Bash(python *),Bash(pytest *),Bash(go *)"]
+prompt_arg = "{prompt}"
+default_budget_usd = 2.0
+default_turns = 150
+sandbox = "worktree"
+streams_freely = false
+notes = "Architectural work, cross-file refactors. ~$5-15 per module. Buffers stdout — trust filesystem activity."

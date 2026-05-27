@@ -1,0 +1,9 @@
+name = "codex"
+command = "codex"
+args = ["exec", "--sandbox", "workspace-write", "--skip-git-repo-check"]
+prompt_arg = "{prompt}"
+default_budget_usd = 0
+default_turns = 0
+sandbox = "worktree"
+streams_freely = true
+notes = "Free if user has OpenAI credits. Often forgets to commit at end — finalize manually."
