@@ -88,3 +88,32 @@ func TestKillUnknownReturnsErrNotFound(t *testing.T) {
 		t.Errorf("expected ErrNotFound, got: %v", err)
 	}
 }
+
+// TestSpawnBareCommandNameResolves verifies that passing a bare command name
+// (e.g. "sh" rather than "/bin/sh") works correctly via exec.LookPath.
+// This is the Unix counterpart of the Windows bare-name fix; on Windows the
+// equivalent test uses "cmd" (see supervisor_windows_test.go).
+func TestSpawnBareCommandNameResolves(t *testing.T) {
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "bare.log")
+
+	m := New(config.Paths{DataDir: dir, LogDir: dir})
+	task, err := m.Spawn(context.Background(), types.SpawnSpec{
+		ID: "bare-cmd-test",
+		Agent: types.AgentType{
+			Name:    "sh",
+			Command: "sh", // bare name — must be resolved via PATH
+			Args:    []string{"-c", "exit 0"},
+		},
+		Log: logPath,
+	})
+	if err != nil {
+		t.Fatalf("Spawn with bare command name: %v", err)
+	}
+	if task.PID == 0 {
+		t.Errorf("expected non-zero PID")
+	}
+	if _, err := m.Wait("bare-cmd-test"); err != nil {
+		t.Fatalf("Wait: %v", err)
+	}
+}

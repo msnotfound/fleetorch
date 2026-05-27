@@ -2,6 +2,7 @@ package supervisor
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"os"
 )
@@ -16,9 +17,15 @@ func (e *entry) serveSocket(path string) {
 
 	ln, err := net.Listen("unix", path)
 	if err != nil {
-		// Best-effort: socket is optional. attach falls back to read-only follow.
+		// Best-effort: socket is optional — attach falls back to read-only follow.
+		// Log to stderr so Windows testers can see whether this is the point of
+		// failure (e.g. AF_UNIX requires Win10 build 1803+, or the sockets
+		// directory does not exist).
+		fmt.Fprintf(os.Stderr, "fleetorch: serveSocket(%s): net.Listen unix failed: %v\n", path, err)
+		debugf("serveSocket(%s): net.Listen failed: %v", path, err)
 		return
 	}
+	debugf("serveSocket(%s): listening", path)
 	e.lnMu.Lock()
 	e.ln = ln
 	e.lnMu.Unlock()
