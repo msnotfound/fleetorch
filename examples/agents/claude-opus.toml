@@ -1,0 +1,9 @@
+name = "claude-opus"
+command = "claude"
+args = ["-p", "--model", "opus", "--verbose", "--max-turns", "200", "--allowedTools", "Read,Edit,Write,Bash(git *),Bash(npm *),Bash(pnpm *),Bash(node *),Bash(python *),Bash(pytest *),Bash(go *)"]
+prompt_arg = "{prompt}"
+default_budget_usd = 5.0
+default_turns = 200
+sandbox = "worktree"
+streams_freely = false
+notes = "Genuinely novel reasoning. Only with explicit user authorization — expensive."
