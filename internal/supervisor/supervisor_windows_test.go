@@ -32,6 +32,7 @@ func TestSpawnBareCommandNameResolvesWindows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Spawn with bare command name on Windows: %v", err)
 	}
+	defer func() { _ = m.Kill("bare-cmd-windows") }()
 	if task.PID == 0 {
 		t.Errorf("expected non-zero PID")
 	}

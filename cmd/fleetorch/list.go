@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"syscall"
 	"text/tabwriter"
 	"time"
 
@@ -73,15 +72,6 @@ func liveStatus(t *types.Task) types.Status {
 		}
 	}
 	return t.Status
-}
-
-func pidAlive(pid int) bool {
-	p, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	// On Unix, signal 0 is a no-op that just checks reachability.
-	return p.Signal(syscall.Signal(0)) == nil
 }
 
 func age(t time.Time) string {

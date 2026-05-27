@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -48,13 +47,22 @@ func doKill(taskID string, purge bool) error {
 
 	if task.PID > 0 && pidAlive(task.PID) {
 		p, _ := os.FindProcess(task.PID)
-		_ = p.Signal(syscall.SIGTERM)
+		_ = signalStop(p)
 		// Wait briefly for clean exit.
 		for i := 0; i < 50 && pidAlive(task.PID); i++ {
 			time.Sleep(100 * time.Millisecond)
 		}
 		if pidAlive(task.PID) {
 			_ = p.Kill()
+		}
+		// The detached worker observes this exit and writes failed/done. Let
+		// that write complete before persisting the user-requested kill state.
+		for i := 0; i < 10; i++ {
+			current, getErr := st.GetTask(taskID)
+			if getErr == nil && (current.Status == types.StatusDone || current.Status == types.StatusFailed) {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
 		}
 	}
 

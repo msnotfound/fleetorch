@@ -409,6 +409,8 @@ $FT kill pty-test
 
 **Skip this section if you don't have codex/claude/gemini installed and authenticated.**
 
+**Windows note:** Section 6 is enabled for v0.4.1 and newer. HF-1 in v0.4.0 incorrectly reported live long-running agents as `dead`; it is fixed by Windows-native process liveness checks.
+
 For each available CLI:
 
 ### 6a. codex
@@ -492,6 +494,7 @@ These were called out by fleetorch's author as the highest-risk areas. Spend ext
    - Confirm `fleetorch spawn shechord t "x"` writes a `.sock` file under `%LOCALAPPDATA%\fleetorch\sockets\`
    - Confirm `attach` opens that socket and proxies bidirectionally
    - Confirm terminal resize *eventually* (within ~250 ms) propagates to the PTY
+   - Confirm a 60-second PowerShell loop remains `active` in `list` (HF-1 regression check, fixed in v0.4.1)
    - If on older Windows: confirm `attach` falls back to `--follow` gracefully
 
 3. **NTFS / network filesystems.** Try setting `FLEETORCH_HOME` to a Windows-mounted drive (or NFS, SMB) and see if file locking misbehaves. Atomic rename of `state.json.tmp → state.json` is the brittle point.
@@ -555,6 +558,7 @@ Per agent, list each flag in the seeded TOML vs the current CLI's `--help`. Note
 ## Windows-specific findings (Section 8.2)
 - AF_UNIX support: <works / falls back to --follow>
 - Resize polling: <works / lag / broken>
+- HF-1 regression (v0.4.1+): <60-second loop remains active / broken>
 - Other:
 
 ## Suggested fixes

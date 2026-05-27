@@ -6,6 +6,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-05-27
+
+### Fixed
+- **HF-1: Windows long-lived agents reported dead while still running.** `list`, `dash`, `attach --follow`, and `kill` used Unix `Signal(0)` process probing on Windows, which treats live processes as unreachable. Windows now queries `GetExitCodeProcess`, and `kill` uses Windows process termination semantics.
+- **Windows kill status ordering.** A user-requested kill no longer races the detached worker's exit update and appears as `failed`; it is persisted as `dead` after the worker observes termination.
+
+### Changed
+- `FLEETORCH_DEBUG=1` now preserves detached-worker lifecycle logs in `debug-<task-id>.log`, including child exit information, so Windows PTY investigations are observable after the parent CLI returns.
+
 ## [0.4.0] — 2026-05-27
 
 ### Fixed
