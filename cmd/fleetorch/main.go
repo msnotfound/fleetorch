@@ -21,15 +21,16 @@ func main() {
 	}
 
 	root.AddCommand(
-		newSpawnCmd(),
-		newListCmd(),
-		newWatchCmd(),
-		newAttachCmd(),
-		newKillCmd(),
-		newDashCmd(),
-		newLogsCmd(),
-		newAgentCmd(),
-		newConfigCmd(),
+		newSpawnCmdReal(),
+		newListCmdReal(),
+		newWatchCmdReal(),
+		newAttachCmdReal(),
+		newKillCmdReal(),
+		newDashCmdReal(),
+		newLogsCmdReal(),
+		newAgentCmdReal(),
+		newConfigCmdReal(),
+		newWorkerCmd(),
 	)
 
 	if err := root.Execute(); err != nil {
