@@ -11,7 +11,7 @@ Every agent-type TOML file supports the following fields:
 | `name` | string | The unique identifier for the agent type (e.g., "claude-sonnet"). |
 | `command` | string | The executable command to run (must be on your PATH). |
 | `args` | array | List of arguments to pass to the command. |
-| `prompt_arg` | string | The placeholder (e.g., `{prompt}`) used in `args` that will be replaced with the actual user prompt at spawn time. |
+| `prompt_arg` | string | A template string (e.g., `{prompt}`) that is appended to the arguments list after replacing `{prompt}` with the user's input. Replacement also occurs for any `{prompt}` found within the `args` array. |
 | `default_budget_usd` | float | The default maximum budget for a task (if supported by the agent). |
 | `default_turns` | int | The default maximum number of turns for a task. |
 | `sandbox` | string | The isolation model: `worktree` (default) or `none`. |
@@ -30,13 +30,13 @@ Optimized for mechanical work and bulk changes using OpenAI's models.
 ```toml
 name = "codex"
 command = "codex"
-args = ["-p", "{prompt}", "--sandbox", "workspace-write", "--skip-git-repo-check"]
+args = ["exec", "--sandbox", "workspace-write", "--skip-git-repo-check"]
 prompt_arg = "{prompt}"
-default_budget_usd = 0.0 # Free if you have credits
-default_turns = 100
+default_budget_usd = 0
+default_turns = 0
 sandbox = "worktree"
 streams_freely = true
-notes = "Mechanical CRUD, bulk grep/sed, tests, boilerplate."
+notes = "Free if user has OpenAI credits. Often forgets to commit at end — finalize manually."
 ```
 
 ### 2. Gemini (`gemini.toml`)
@@ -45,13 +45,13 @@ Best for long-document analysis and codebase-wide reading with a 1M token contex
 ```toml
 name = "gemini"
 command = "gemini"
-args = ["yolo", "{prompt}"]
+args = ["--yolo"]
 prompt_arg = "{prompt}"
-default_budget_usd = 0.0 # Free tier eligible
-default_turns = 50
+default_budget_usd = 0
+default_turns = 0
 sandbox = "worktree"
 streams_freely = true
-notes = "Deep codebase analysis. Pre-stage external files if necessary."
+notes = "Free tier eligible. 1M context. Sandboxes to cwd — pre-stage files before spawning."
 ```
 
 ### 3. Claude Haiku (`claude-haiku.toml`)
@@ -60,13 +60,13 @@ Quick and inexpensive for small, self-contained tasks.
 ```toml
 name = "claude-haiku"
 command = "claude"
-args = ["-p", "--model", "haiku", "--verbose", "--allowedTools", "Read,Edit,Write,Bash", "--prompt", "{prompt}"]
+args = ["-p", "--model", "haiku", "--verbose", "--max-turns", "50", "--allowedTools", "Read,Edit,Write,Bash(git *),Bash(npm *),Bash(pnpm *),Bash(node *),Bash(python *),Bash(pytest *),Bash(go *)"]
 prompt_arg = "{prompt}"
-default_budget_usd = 0.50
+default_budget_usd = 0.5
 default_turns = 50
 sandbox = "worktree"
 streams_freely = false
-notes = "Short structured tasks. Buffers stdout — trust filesystem activity."
+notes = "Short structured tasks, ~$0.30-1 per module. Lower quality than sonnet on math/architecture."
 ```
 
 ### 4. Claude Sonnet (`claude-sonnet.toml`)
@@ -75,13 +75,13 @@ The balanced default for architectural work and complex refactors.
 ```toml
 name = "claude-sonnet"
 command = "claude"
-args = ["-p", "--model", "sonnet", "--verbose", "--allowedTools", "Read,Edit,Write,Bash", "--prompt", "{prompt}"]
+args = ["-p", "--model", "sonnet", "--verbose", "--max-turns", "150", "--allowedTools", "Read,Edit,Write,Bash(git *),Bash(npm *),Bash(pnpm *),Bash(node *),Bash(python *),Bash(pytest *),Bash(go *)"]
 prompt_arg = "{prompt}"
-default_budget_usd = 2.00
+default_budget_usd = 2.0
 default_turns = 150
 sandbox = "worktree"
 streams_freely = false
-notes = "Architectural work and design synthesis. Buffers stdout."
+notes = "Architectural work, cross-file refactors. ~$5-15 per module. Buffers stdout — trust filesystem activity."
 ```
 
 ### 5. Claude Opus (`claude-opus.toml`)
@@ -90,13 +90,13 @@ High-fidelity reasoning for novel or extremely difficult research problems.
 ```toml
 name = "claude-opus"
 command = "claude"
-args = ["-p", "--model", "opus", "--verbose", "--allowedTools", "Read,Edit,Write,Bash", "--prompt", "{prompt}"]
+args = ["-p", "--model", "opus", "--verbose", "--max-turns", "200", "--allowedTools", "Read,Edit,Write,Bash(git *),Bash(npm *),Bash(pnpm *),Bash(node *),Bash(python *),Bash(pytest *),Bash(go *)"]
 prompt_arg = "{prompt}"
-default_budget_usd = 5.00
+default_budget_usd = 5.0
 default_turns = 200
 sandbox = "worktree"
 streams_freely = false
-notes = "Novel research only. High cost per turn."
+notes = "Genuinely novel reasoning. Only with explicit user authorization — expensive."
 ```
 
 ---
