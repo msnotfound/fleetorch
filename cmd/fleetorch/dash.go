@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/msnotfound/fleetorch/internal/config"
 	"github.com/msnotfound/fleetorch/internal/store"
@@ -302,6 +304,11 @@ func tailLinesString(s string, n int) string {
 }
 
 func doDashTUI() error {
+	if !term.IsTerminal(int(os.Stdout.Fd())) {
+		msg := "dash requires a terminal. Use --plain for a non-interactive table."
+		fmt.Fprintln(os.Stderr, msg)
+		return errors.New(msg)
+	}
 	paths, err := config.Resolve()
 	if err != nil {
 		return err

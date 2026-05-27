@@ -41,6 +41,10 @@ func doKill(taskID string, purge bool) error {
 		}
 		return err
 	}
+	if task.Status == types.StatusDone || task.Status == types.StatusFailed {
+		fmt.Printf("task %s already exited (status: %s); nothing to kill\n", taskID, task.Status)
+		return nil
+	}
 
 	if task.PID > 0 && pidAlive(task.PID) {
 		p, _ := os.FindProcess(task.PID)
