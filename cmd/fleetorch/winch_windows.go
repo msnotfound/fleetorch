@@ -2,9 +2,37 @@
 
 package main
 
-import "os"
+import (
+	"net"
+	"time"
+)
 
-// Windows has no SIGWINCH. Resize propagation is a no-op for now; the
-// initial size still ships at attach time. A future revision can poll
-// console size and synthesize resize frames.
-func winchSignal() []os.Signal { return nil }
+const winchPollInterval = 250 * time.Millisecond
+
+// startWinchWatcher polls the terminal size and emits a resize frame whenever
+// it changes. Windows has no SIGWINCH; this is the cheapest cross-platform
+// proxy for it.
+func startWinchWatcher(conn net.Conn) func() {
+	done := make(chan struct{})
+	lastRows, lastCols, _ := currentTermSize()
+	go func() {
+		t := time.NewTicker(winchPollInterval)
+		defer t.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-t.C:
+				rows, cols, ok := currentTermSize()
+				if !ok {
+					continue
+				}
+				if rows != lastRows || cols != lastCols {
+					sendResize(conn, rows, cols)
+					lastRows, lastCols = rows, cols
+				}
+			}
+		}
+	}()
+	return func() { close(done) }
+}

@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"os/signal"
 	"sync"
 	"time"
 
@@ -161,13 +160,26 @@ func attachSocket(path string) error {
 	return nil
 }
 
-func sendResizeFromTerm(conn net.Conn) {
-	cols, rows, err := term.GetSize(int(os.Stdout.Fd()))
+// currentTermSize returns (rows, cols) of the connected terminal, or 0/0 on error.
+func currentTermSize() (rows, cols uint16, ok bool) {
+	c, r, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
+		return 0, 0, false
+	}
+	return uint16(r), uint16(c), true
+}
+
+func sendResize(conn net.Conn, rows, cols uint16) {
+	_ = supervisor.WriteFrame(conn, supervisor.FrameResize,
+		supervisor.ResizePayload(rows, cols))
+}
+
+func sendResizeFromTerm(conn net.Conn) {
+	rows, cols, ok := currentTermSize()
+	if !ok {
 		return
 	}
-	_ = supervisor.WriteFrame(conn, supervisor.FrameResize,
-		supervisor.ResizePayload(uint16(rows), uint16(cols)))
+	sendResize(conn, rows, cols)
 }
 
 // followLog is the read-only fallback for tasks without a live socket.
@@ -193,22 +205,3 @@ func followLog(path string, pid int) error {
 	}
 }
 
-// startWinchWatcher returns a cancel func. SIGWINCH is Unix-only; on
-// Windows the watcher is a no-op (return value still safe to call).
-func startWinchWatcher(conn net.Conn) func() {
-	ch := make(chan os.Signal, 4)
-	signal.Notify(ch, winchSignal()...)
-	done := make(chan struct{})
-	go func() {
-		for {
-			select {
-			case <-done:
-				signal.Stop(ch)
-				return
-			case <-ch:
-				sendResizeFromTerm(conn)
-			}
-		}
-	}()
-	return func() { close(done) }
-}

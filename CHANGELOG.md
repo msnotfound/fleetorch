@@ -6,6 +6,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-05-27
+
+### Added
+- Windows SIGWINCH polling: on Windows (which has no SIGWINCH signal), `attach` now polls the terminal size every 250ms and emits a resize frame only when it changes. Unix continues to use real SIGWINCH.
+
+### Verified
+- `fleetorch upgrade` round-trip smoke-tested against the live v0.3.0 release (download → sha256 verify → atomic swap → version check).
+
 ## [0.3.0] — 2026-05-27
 
 ### Added
@@ -43,7 +51,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - GoReleaser pipeline → GitHub Releases on every tag push.
 - `curl|sh` installer at `scripts/install.sh`.
 
-[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/msnotfound/fleetorch/releases/tag/v0.3.1
 [0.3.0]: https://github.com/msnotfound/fleetorch/releases/tag/v0.3.0
 [0.2.0]: https://github.com/msnotfound/fleetorch/releases/tag/v0.2.0
 [0.1.0]: https://github.com/msnotfound/fleetorch/releases/tag/v0.1.0
