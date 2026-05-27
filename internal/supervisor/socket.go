@@ -2,7 +2,6 @@ package supervisor
 
 import (
 	"errors"
-	"io"
 	"net"
 	"os"
 )
@@ -45,20 +44,38 @@ func (e *entry) serveSocket(path string) {
 func (e *entry) handleClient(conn net.Conn) {
 	defer conn.Close()
 
+	fw := newFrameWriter(conn)
+
 	// Replay recent output so the client has context.
 	if snap := e.ring.Snapshot(); len(snap) > 0 {
-		_, _ = conn.Write(snap)
+		_, _ = fw.Write(snap)
 	}
 
-	// Live tee.
-	e.out.attach(conn)
-	defer e.out.detach(conn)
+	// Live tee. PTY output gets framed via fw before hitting the socket.
+	e.out.attach(fw)
+	defer e.out.detach(fw)
 
-	// Forward client stdin into the PTY. When client closes, this returns.
 	done := make(chan struct{})
 	go func() {
-		_, _ = io.Copy(e.pty, conn)
-		close(done)
+		defer close(done)
+		for {
+			typ, payload, err := ReadFrame(conn)
+			if err != nil {
+				return
+			}
+			switch typ {
+			case FrameData:
+				if _, werr := e.pty.Write(payload); werr != nil {
+					return
+				}
+			case FrameResize:
+				if rows, cols, ok := ParseResize(payload); ok {
+					_ = e.pty.Resize(int(cols), int(rows))
+				}
+			default:
+				// Unknown frame type — ignore for forward compatibility.
+			}
+		}
 	}()
 
 	select {

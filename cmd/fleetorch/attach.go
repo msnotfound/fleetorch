@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/signal"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 
 	"github.com/msnotfound/fleetorch/internal/config"
 	"github.com/msnotfound/fleetorch/internal/store"
+	"github.com/msnotfound/fleetorch/internal/supervisor"
 )
 
 func newAttachCmdReal() *cobra.Command {
@@ -22,11 +24,11 @@ func newAttachCmdReal() *cobra.Command {
 		Use:   "attach <task-id>",
 		Short: "Drop into the live PTY of a running task (or --follow for read-only log tail)",
 		Long: `Attach to a running task's PTY. Anything you type is sent to the agent;
-output streams to your terminal. Detach with Ctrl-] q.
+output streams to your terminal. Detach with Ctrl-] q. Terminal resizes
+(SIGWINCH) are propagated to the agent's PTY.
 
-If the task's control socket is unavailable (older task, daemonless process
-died), falls back to the read-only log tail. Use --follow to skip the
-socket and tail the log directly.`,
+If the task's control socket is unavailable, falls back to read-only log
+tail. Use --follow to force log-tail mode.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return doAttach(args[0], follow)
@@ -62,7 +64,7 @@ func socketAlive(path string) bool {
 	return true
 }
 
-// attachSocket proxies the terminal to the task's PTY socket bidirectionally.
+// attachSocket proxies the terminal to the task's framed PTY socket.
 // Detach sequence: Ctrl-] (0x1d) followed by 'q'.
 func attachSocket(path string) error {
 	conn, err := net.Dial("unix", path)
@@ -81,17 +83,36 @@ func attachSocket(path string) error {
 	}
 	defer restore()
 
+	sendResizeFromTerm(conn) // initial size
+
+	// Watch for terminal resize and propagate.
+	winch := startWinchWatcher(conn)
+	defer winch()
+
 	fmt.Fprint(os.Stderr, "[attached — detach with Ctrl-] q]\r\n")
 
 	var once sync.Once
 	done := make(chan struct{})
 	stop := func() { once.Do(func() { close(done) }) }
 
+	// Socket → stdout (parse frames).
 	go func() {
-		_, _ = io.Copy(os.Stdout, conn)
-		stop()
+		for {
+			typ, payload, err := supervisor.ReadFrame(conn)
+			if err != nil {
+				stop()
+				return
+			}
+			if typ == supervisor.FrameData && len(payload) > 0 {
+				if _, werr := os.Stdout.Write(payload); werr != nil {
+					stop()
+					return
+				}
+			}
+		}
 	}()
 
+	// Stdin → socket (data frames, filtered for detach sequence).
 	go func() {
 		buf := make([]byte, 1024)
 		escape := false
@@ -103,7 +124,7 @@ func attachSocket(path string) error {
 					if escape {
 						if b == 'q' || b == 'Q' {
 							if len(filtered) > 0 {
-								_, _ = conn.Write(filtered)
+								_ = supervisor.WriteFrame(conn, supervisor.FrameData, filtered)
 							}
 							stop()
 							return
@@ -112,14 +133,14 @@ func attachSocket(path string) error {
 						escape = false
 						continue
 					}
-					if b == 0x1d { // Ctrl-]
+					if b == 0x1d {
 						escape = true
 						continue
 					}
 					filtered = append(filtered, b)
 				}
 				if len(filtered) > 0 {
-					if _, werr := conn.Write(filtered); werr != nil {
+					if werr := supervisor.WriteFrame(conn, supervisor.FrameData, filtered); werr != nil {
 						stop()
 						return
 					}
@@ -138,6 +159,15 @@ func attachSocket(path string) error {
 	<-done
 	fmt.Fprint(os.Stderr, "\r\n[detached]\r\n")
 	return nil
+}
+
+func sendResizeFromTerm(conn net.Conn) {
+	cols, rows, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		return
+	}
+	_ = supervisor.WriteFrame(conn, supervisor.FrameResize,
+		supervisor.ResizePayload(uint16(rows), uint16(cols)))
 }
 
 // followLog is the read-only fallback for tasks without a live socket.
@@ -161,4 +191,24 @@ func followLog(path string, pid int) error {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
+}
+
+// startWinchWatcher returns a cancel func. SIGWINCH is Unix-only; on
+// Windows the watcher is a no-op (return value still safe to call).
+func startWinchWatcher(conn net.Conn) func() {
+	ch := make(chan os.Signal, 4)
+	signal.Notify(ch, winchSignal()...)
+	done := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-done:
+				signal.Stop(ch)
+				return
+			case <-ch:
+				sendResizeFromTerm(conn)
+			}
+		}
+	}()
+	return func() { close(done) }
 }

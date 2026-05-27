@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"text/tabwriter"
 
@@ -42,8 +43,40 @@ func newAgentCmdReal() *cobra.Command {
 				return doAgentRemove(args[0])
 			},
 		},
+		&cobra.Command{
+			Use:   "edit <name>",
+			Short: "Open an installed agent TOML in $EDITOR",
+			Args:  cobra.ExactArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return doAgentEdit(args[0])
+			},
+		},
 	)
 	return cmd
+}
+
+func doAgentEdit(name string) error {
+	paths, err := config.Resolve()
+	if err != nil {
+		return err
+	}
+	if err := paths.EnsureDirs(); err != nil {
+		return err
+	}
+	if err := agents.SeedDefaults(paths.AgentsDir); err != nil {
+		return err
+	}
+	target := filepath.Join(paths.AgentsDir, name+".toml")
+	if _, err := os.Stat(target); err != nil {
+		return fmt.Errorf("agent %q not installed (looked for %s)", name, target)
+	}
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = "vi"
+	}
+	c := exec.Command(editor, target)
+	c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
+	return c.Run()
 }
 
 func doAgentList() error {

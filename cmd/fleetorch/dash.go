@@ -56,7 +56,9 @@ type dashModel struct {
 	width  int
 	height int
 
-	err error
+	err          error
+	confirmKill  bool   // K pressed once; second press confirms
+	flashMessage string // transient footer note
 }
 
 func newDashModel(st *store.Store) dashModel {
@@ -113,6 +115,28 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "r":
 			return m, m.refresh
+		case "K":
+			if len(m.tasks) == 0 {
+				return m, nil
+			}
+			id := m.tasks[m.selected].ID
+			if !m.confirmKill {
+				m.confirmKill = true
+				m.flashMessage = "press K again to kill " + id + ", any other key cancels"
+				return m, nil
+			}
+			m.confirmKill = false
+			m.flashMessage = "killed " + id
+			if err := doKill(id, false); err != nil {
+				m.flashMessage = "kill failed: " + err.Error()
+			}
+			return m, m.refresh
+		default:
+			// Any other key cancels a pending kill confirmation.
+			if m.confirmKill {
+				m.confirmKill = false
+				m.flashMessage = ""
+			}
 		}
 
 	case tickMsg:
@@ -165,7 +189,11 @@ func (m dashModel) View() string {
 	right := m.renderLog(rightW, innerH)
 
 	header := styleTitle.Render("fleetorch") + styleDim.Render("  "+time.Now().Format("15:04:05"))
-	bottom := styleDim.Render("j/k navigate  g/G top/bottom  r refresh  q quit")
+	bottomKeys := "j/k navigate  g/G top/bottom  K kill  r refresh  q quit"
+	bottom := styleDim.Render(bottomKeys)
+	if m.flashMessage != "" {
+		bottom = styleIdle.Render(m.flashMessage) + "  " + styleDim.Render(bottomKeys)
+	}
 
 	body := lipgloss.JoinHorizontal(lipgloss.Top,
 		styleBorder.Width(leftW).Height(innerH).Render(left),
@@ -184,8 +212,8 @@ func (m dashModel) renderTaskList(w, h int) string {
 	for i, t := range m.tasks {
 		live := liveStatus(t)
 		statusStr := styleForStatus(live).Render(string(live))
-		line := fmt.Sprintf("%-12s  %-13s  %s  %s",
-			truncate(t.ID, 12), truncate(t.Agent, 13), statusStr, age(t.StartedAt))
+		line := fmt.Sprintf("%-12s  %-13s  %s  %s  $%.2f",
+			truncate(t.ID, 12), truncate(t.Agent, 13), statusStr, age(t.StartedAt), t.BudgetUSD)
 		if i == m.selected {
 			line = styleSelected.Render("▸ " + line)
 		} else {

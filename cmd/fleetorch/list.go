@@ -46,11 +46,11 @@ func doList() error {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "TASK-ID\tAGENT\tSTATUS\tAGE\tWORKTREE")
+	fmt.Fprintln(w, "TASK-ID\tAGENT\tSTATUS\tAGE\tBUDGET\tWORKTREE")
 	for _, t := range tasks {
 		status := liveStatus(t)
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
-			t.ID, t.Agent, status, age(t.StartedAt), shortPath(t.Worktree))
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t$%.2f\t%s\n",
+			t.ID, t.Agent, status, age(t.StartedAt), t.BudgetUSD, shortPath(t.Worktree))
 	}
 	return w.Flush()
 }

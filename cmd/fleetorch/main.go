@@ -30,6 +30,10 @@ func main() {
 		newLogsCmdReal(),
 		newAgentCmdReal(),
 		newConfigCmdReal(),
+		newLedgerCmd(),
+		newMergeResolveCmd(),
+		newUpgradeCmd(),
+		newMonitorCmd(),
 		newWorkerCmd(),
 	)
 

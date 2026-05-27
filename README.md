@@ -35,7 +35,9 @@ curl -fsSL https://raw.githubusercontent.com/msnotfound/fleetorch/main/scripts/i
 ```
 
 ### Windows (Beta)
-Download the latest executable from the [releases page](https://github.com/msnotfound/fleetorch/releases) and add it to your PATH. *Note: Windows support uses ConPTY and is currently in beta.*
+Download the `.zip` from the [releases page](https://github.com/msnotfound/fleetorch/releases), extract, and add the directory to your `PATH`. Windows support uses ConPTY (via go-pty) and is currently in beta — bug reports welcome.
+
+> **Attach caveat:** the bidirectional attach command relies on Unix-domain sockets (`AF_UNIX`), which require **Windows 10 1803 or newer**. On older Windows, `fleetorch attach` automatically falls back to `--follow` (read-only log tail). Use `fleetorch logs <id>` or `fleetorch attach <id> --follow` if attach can't connect.
 
 ### From Source
 ```bash
