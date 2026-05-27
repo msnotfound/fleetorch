@@ -62,11 +62,11 @@ go install github.com/msnotfound/fleetorch/cmd/fleetorch@latest
    my-task  claude-sonnet  RUNNING  12/150 $0.45   2026-05-27 14:00
    ```
 
-3. **Attach to live output:**
+3. **Follow live output:**
    ```bash
    fleetorch attach my-task
    ```
-   *Drops you into the live terminal session of the agent.*
+   *Streams the agent's output to your terminal as it runs. Press Ctrl-C to detach. (v0.1 is read-only; bidirectional PTY attach lands in v0.2.)*
 
 ---
 
@@ -121,8 +121,8 @@ graph TD
 | `spawn` | Create a new task and start an agent. |
 | `list` | Show all tracked tasks and their current status. |
 | `watch` | Snapshot or tail the logs of a specific task. |
-| `attach` | Drop into the live PTY session of a running agent. |
-| `dash` | Launch the interactive TUI dashboard. |
+| `attach` | Follow a task's live output (read-only in v0.1). |
+| `dash` | Auto-refreshing status table (full bubbletea TUI in v0.2). |
 | `kill` | Stop an agent and optionally clean up its worktree. |
 | `agent` | Manage agent-type plugins (list, add, remove). |
 | `config` | View or edit the global configuration. |
@@ -153,15 +153,17 @@ streams_freely = true
 
 **Current Version:** v0.1.0
 
-*   **Linux/macOS:** Stable.
-*   **Windows:** Beta (ConPTY integration is new).
-*   **Plugins:** Manual TOML placement only; marketplace coming in v0.3.
+*   **Linux/macOS:** Working. End-to-end smoke-tested.
+*   **Windows:** Beta. Cross-compiles cleanly via ConPTY (go-pty), but launch-day testing is limited.
+*   **Attach:** Read-only (follow log). Bidirectional PTY attach (typing to the agent) is planned for v0.2.
+*   **Dashboard:** Simple auto-refresh table. Full bubbletea TUI in v0.2.
+*   **Plugins:** Manual TOML placement only; agent marketplace planned for v0.3.
 
 ---
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+Issues and PRs welcome. fleetorch started as a private bash tool ([`orcha`](docs/migration-from-orcha.md)) — this is its first public release. Bug reports for non-Linux platforms especially appreciated.
 
 ## License
 
