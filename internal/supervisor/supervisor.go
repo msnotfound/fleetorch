@@ -9,8 +9,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +22,18 @@ import (
 	"github.com/msnotfound/fleetorch/internal/config"
 	"github.com/msnotfound/fleetorch/internal/types"
 )
+
+// debugLogging is true when FLEETORCH_DEBUG=1 is set in the environment.
+// When enabled, Spawn emits log.Printf lines at each lifecycle boundary so
+// Windows testers can pinpoint where the flow stalls (AF_UNIX unavailability,
+// PTY allocation blocking, etc.).
+var debugLogging = os.Getenv("FLEETORCH_DEBUG") == "1"
+
+func debugf(format string, args ...any) {
+	if debugLogging {
+		log.Printf("[fleetorch-debug] "+format, args...)
+	}
+}
 
 const (
 	ringCapacity     = 4 << 10 // 4 KiB recent output for attach replay
@@ -69,27 +83,54 @@ func (m *Manager) Spawn(ctx context.Context, spec types.SpawnSpec) (*types.Task,
 
 	argv := renderArgs(spec)
 
+	// --- Bug fix: resolve bare command names via PATH on all platforms.
+	//
+	// On Windows, go-pty / ConPTY does not perform PATH lookup for the
+	// executable the way Unix exec does; passing "powershell" resolves
+	// relative to the worktree instead of %PATH%, producing:
+	//   exec: "...\worktrees\foo\powershell": executable file not found in %PATH%
+	//
+	// Calling exec.LookPath here normalises the path to an absolute one before
+	// it ever reaches go-pty, fixing every seeded agent TOML on Windows.
+	debugf("Spawn %s: raw command %q argv=%v", spec.ID, argv[0], argv[1:])
+	resolved, lookErr := exec.LookPath(argv[0])
+	if lookErr != nil {
+		return nil, fmt.Errorf("agent command %q not found on PATH: %w", argv[0], lookErr)
+	}
+	debugf("Spawn %s: resolved %q → %q", spec.ID, argv[0], resolved)
+	argv[0] = resolved
+
 	logF, err := os.OpenFile(spec.Log, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("open log: %w", err)
 	}
+	debugf("Spawn %s: log file opened at %s", spec.ID, spec.Log)
 
+	// --- Blocking call 1: pty.New()
+	// On Windows this allocates a ConPTY (ConCreatePseudoConsole). If the
+	// Windows build is too old or ConPTY is unavailable, this may hang or
+	// return an error. FLEETORCH_DEBUG=1 lets testers see whether we make it
+	// past this point.
 	p, err := pty.New()
 	if err != nil {
 		logF.Close()
 		return nil, fmt.Errorf("open pty: %w", err)
 	}
+	debugf("Spawn %s: PTY allocated", spec.ID)
 
 	cmd := p.Command(argv[0], argv[1:]...)
 	if spec.Worktree != "" {
 		cmd.Dir = spec.Worktree
 	}
 
+	// --- Blocking call 2: cmd.Start()
+	// Forks the process. On Windows this also wires the ConPTY handles.
 	if err := cmd.Start(); err != nil {
 		_ = p.Close()
 		logF.Close()
 		return nil, fmt.Errorf("start: %w", err)
 	}
+	debugf("Spawn %s: process started PID=%d", spec.ID, cmd.Process.Pid)
 
 	ring := newRingBuf(ringCapacity)
 	out := newTeeWriter(logF, ring)
@@ -118,14 +159,30 @@ func (m *Manager) Spawn(ctx context.Context, spec types.SpawnSpec) (*types.Task,
 	m.mu.Lock()
 	m.tasks[spec.ID] = e
 	m.mu.Unlock()
+	debugf("Spawn %s: registered in task map", spec.ID)
 
+	// --- Goroutine 1: copyPTY
+	// Reads from the PTY master and fans out to the log + ring buffer.
+	// On Windows this may block if ConPTY produces no output immediately —
+	// that is normal and should not prevent the socket from being created.
 	go e.copyPTY()
+
+	// --- Goroutine 2: wait
+	// Calls cmd.Wait() which blocks until the child process exits.
 	go e.wait()
+
 	if spec.Socket != "" {
 		task.Socket = spec.Socket
+		// --- Goroutine 3: serveSocket
+		// Creates the Unix-domain socket and accepts attach clients.
+		// On Windows, AF_UNIX requires Win10 build 1803+. If net.Listen fails
+		// (e.g. older Windows, or the sockets directory doesn't exist), it now
+		// logs to stderr instead of silently returning so the failure is visible.
+		debugf("Spawn %s: launching serveSocket at %s", spec.ID, spec.Socket)
 		go e.serveSocket(spec.Socket)
 	}
 
+	debugf("Spawn %s: Spawn complete, returning task", spec.ID)
 	return cloneTask(task), nil
 }
 
