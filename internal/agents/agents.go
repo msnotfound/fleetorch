@@ -17,7 +17,7 @@ import (
 
 var ErrUnknownAgent = errors.New("unknown agent type")
 
-//go:embed examples/*.toml
+//go:embed builtin/*.toml
 var defaultAgents embed.FS
 
 // AgentType is a local renderable view of types.AgentType.
@@ -109,7 +109,7 @@ func SeedDefaults(dir string) error {
 		return nil
 	}
 
-	return fs.WalkDir(defaultAgents, "examples", func(path string, d fs.DirEntry, err error) error {
+	return fs.WalkDir(defaultAgents, "builtin", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}

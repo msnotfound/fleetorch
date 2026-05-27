@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/gofrs/flock"
 	"github.com/msnotfound/fleetorch/internal/types"
@@ -14,14 +15,15 @@ import (
 var ErrNotFound = errors.New("task not found")
 
 type Store struct {
-	path string
-	lock *flock.Flock
+	path  string
+	flock *flock.Flock
+	mu    sync.Mutex // serializes Updates within this process; flock handles cross-process
 }
 
 func New(path string) *Store {
 	return &Store{
-		path: path,
-		lock: flock.New(path + ".lock"),
+		path:  path,
+		flock: flock.New(path + ".lock"),
 	}
 }
 
@@ -37,10 +39,12 @@ func (s *Store) Update(fn func(*types.State) error) error {
 	if err := s.ensureDir(); err != nil {
 		return err
 	}
-	if err := s.lock.Lock(); err != nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.flock.Lock(); err != nil {
 		return err
 	}
-	defer s.lock.Unlock()
+	defer s.flock.Unlock()
 
 	st, err := s.load()
 	if err != nil {
