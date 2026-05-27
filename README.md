@@ -4,7 +4,7 @@
 
 `fleetorch` is a cross-platform CLI for spawning, managing, and attaching to multiple AI coding agents running in parallel. It handles the orchestration grunt-work: isolated git worktrees per agent, PTY-based execution with live multi-client attach, cross-platform terminal control, and a unified dashboard to watch the fleet.
 
-**Linux • macOS • Windows.** All first-class. One static binary, no runtime dependencies.
+**Linux, macOS, and Windows.** Single static binary, no runtime dependencies. **Windows has known issues being tracked toward v0.4 — see [Project status](#project-status).**
 
 ```bash
 # Linux / macOS
@@ -24,7 +24,7 @@ fleetorch list
 ## Why fleetorch
 
 - **Single static binary.** No `tmux`, `jq`, bash, GNU coreutils, or PowerShell modules required at runtime.
-- **Truly cross-platform.** Linux, macOS, and Windows — each gets a native build for both x86_64 and arm64. No "Windows is beta" hand-waving; the same supervisor code runs everywhere via ConPTY on Windows and PTY on Unix.
+- **Cross-platform.** Linux and macOS are fully supported. Windows builds clean and runs most commands, but bidirectional attach and long-running agents have known issues being tracked toward v0.4 — see Project status.
 - **Plugin model.** Each agent type is a TOML file — drop one in to add a new agent, no recompile.
 - **Live attach with multi-client broadcast.** Multiple terminals can attach to the same task and see the same PTY stream. Detach with `Ctrl-] q`.
 - **Terminal resize works.** SIGWINCH on Unix; a 250ms size-polling proxy on Windows (which has no SIGWINCH). The agent's PTY follows your terminal in both cases.
@@ -252,21 +252,27 @@ Then `fleetorch agent list` will show it and `fleetorch spawn my-custom-agent ..
 
 ## Project status
 
-**Current version:** v0.3.2
+**Current version:** v0.4.0
 
-- **Linux / macOS / Windows** — all first-class. Same supervisor, same socket protocol, same TUI.
+- **Linux / macOS** — fully supported and first-class. All features working as designed.
+- **Windows** — builds clean, ships x86_64 and arm64, most commands work. Two known issues being tracked:
+  - Long-running agent state registration may fail on some Windows configurations.
+  - `upgrade` from v0.3.0/v0.3.1 binaries still fails with "Access is denied" (those predate the rename-aside fix).
 - **Architectures shipped per release:** linux x86_64+arm64, macOS x86_64+arm64, Windows x86_64+arm64 (six binaries).
-- **Attach.** Bidirectional PTY via per-task Unix-domain socket (Win10 1803+ for `AF_UNIX`; older Windows auto-falls back to `--follow`).
 - **Terminal resize.** SIGWINCH on Unix; 250 ms polling proxy on Windows. Both propagate to the agent's PTY.
 - **Self-update.** `fleetorch upgrade` works on all three OSes (with a rename-aside fallback for Windows's locked-`.exe` case).
 - **Dashboard.** Interactive bubbletea TUI; `--plain` for SSH/dumb terms.
-- **Plugins.** Manual TOML placement today. A remote `fleetorch agent install <url>` registry is planned for **v0.4**.
+- **Plugins.** Manual TOML placement today. A remote `fleetorch agent install <url>` registry is planned for **v0.5**.
 
 ### Known caveats
 
-- **Windows older than 10 1803** doesn't support `AF_UNIX`. `attach` automatically falls back to `--follow` (read-only). The rest of fleetorch — spawn, list, kill, dash, logs — works unchanged.
+- **Windows — known issues in v0.3.x, partially fixed in v0.4.0:**
+  - `exec.LookPath` fix means shipped TOMLs (`powershell`, `codex`, etc.) now resolve via `%PATH%` as expected.
+  - Long-running Windows agents may still fail to register state.json / socket on some configurations — under investigation. Symptoms: `fleetorch list` shows no tasks, `attach` falls back to log-tail-only.
+  - `fleetorch upgrade` from v0.3.0/v0.3.1 binaries on Windows still fails with "Access is denied" — these versions predate the rename-aside fix. Affected users must re-run the PowerShell installer.
 - **Seeded agent TOMLs** are written against the codex / gemini / claude CLI flags as they existed at fleetorch's release. If any of those CLIs change flags upstream, edit the corresponding TOML (`fleetorch agent edit codex` etc.). PRs welcome to keep them current.
 - **Antivirus on Windows** may quarantine `fleetorch.exe` until you allow it — unsigned binaries are common to flag. Add an exclusion for `%LOCALAPPDATA%\Programs\fleetorch\` if needed.
+- **Windows older than 10 1803** doesn't support `AF_UNIX`. `attach` automatically falls back to `--follow` (read-only). The rest of fleetorch — spawn, list, kill, dash, logs — works unchanged.
 
 ---
 

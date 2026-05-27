@@ -3,7 +3,7 @@
 You (a human or a coding agent: Claude, Codex, Gemini) are about to install fleetorch from scratch and exercise its full surface. The goal is **not** to confirm the happy path — it's to find bugs. Be skeptical, document everything, and finish with a written report.
 
 The repo: https://github.com/msnotfound/fleetorch
-The latest release at time of writing: **v0.3.1**.
+The latest release at time of writing: **v0.4.0**.
 
 ---
 
@@ -65,7 +65,7 @@ ls -la /tmp/fo-test-install/fleetorch
 /tmp/fo-test-install/fleetorch --version
 ```
 
-**Expected:** binary exists, runs, prints `fleetorch version 0.3.1` (or newer).
+**Expected:** binary exists, runs, prints `fleetorch version 0.4.0` (or newer).
 **Weak point to probe:** what happens if you run the installer twice in a row? Does it overwrite cleanly? What if `/tmp/fo-test-install` is read-only? What if you set `FLEETORCH_VERSION=v0.2.0` — does it pin?
 
 **On Windows the installer should refuse:** Windows uses `cmd.exe` / PowerShell and has no `sh`. Confirm that running the installer through Git Bash or WSL either (a) detects Windows and points the user at the releases page, or (b) succeeds with WSL semantics. Document which happened.
@@ -79,17 +79,17 @@ Pick the asset matching your OS/arch from https://github.com/msnotfound/fleetorc
 ```bash
 cd /tmp
 curl -fsSLO https://github.com/msnotfound/fleetorch/releases/latest/download/checksums.txt
-curl -fsSLO https://github.com/msnotfound/fleetorch/releases/latest/download/fleetorch_0.3.1_linux_x86_64.tar.gz   # adjust for macos_x86_64 / macos_arm64 / linux_arm64
+curl -fsSLO https://github.com/msnotfound/fleetorch/releases/latest/download/fleetorch_0.4.0_linux_x86_64.tar.gz   # adjust for macos_x86_64 / macos_arm64 / linux_arm64
 sha256sum -c --ignore-missing checksums.txt
-tar -xzf fleetorch_0.3.1_linux_x86_64.tar.gz
+tar -xzf fleetorch_0.4.0_linux_x86_64.tar.gz
 ./fleetorch --version
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
-$ver = "0.3.1"
-$arch = "x86_64"               # only x86_64 ships for Windows today; arm64 not yet built
+$ver = "0.4.0"
+$arch = "x86_64"               # or arm64 for ARM64 Windows
 $base = "https://github.com/msnotfound/fleetorch/releases/download/v$ver"
 $dst  = "$env:USERPROFILE\Downloads\fleetorch"
 New-Item -ItemType Directory -Force -Path $dst | Out-Null
@@ -112,7 +112,7 @@ To make `fleetorch` available from any shell, add `$dst` to your user PATH:
 # Open a new PowerShell window for the change to take effect.
 ```
 
-**Expected (both):** checksum verifies; binary runs and reports `fleetorch version 0.3.1`.
+**Expected (both):** checksum verifies; binary runs and reports `fleetorch version 0.4.0`.
 **Weak point:** confirm the README documents this manual Windows path (the `curl|sh` installer explicitly skips Windows).
 
 ### 1c. `go install` — all platforms
@@ -146,8 +146,8 @@ mkdir -p /tmp/fo-upgrade-test && cd /tmp/fo-upgrade-test
 curl -fsSL https://github.com/msnotfound/fleetorch/releases/download/v0.3.0/fleetorch_0.3.0_linux_x86_64.tar.gz | tar -xz
 chmod +x fleetorch
 ./fleetorch --version           # expect: 0.3.0
-./fleetorch upgrade             # should upgrade to 0.3.1 (or newer)
-./fleetorch --version           # expect: 0.3.1
+./fleetorch upgrade             # should upgrade to 0.4.0 (or newer)
+./fleetorch --version           # expect: 0.4.0
 ./fleetorch upgrade             # second time should say "already on …"
 ./fleetorch upgrade --force     # should re-download even though already latest
 ```
@@ -161,15 +161,15 @@ Set-Location $work
 Invoke-WebRequest "https://github.com/msnotfound/fleetorch/releases/download/v0.3.0/fleetorch_0.3.0_windows_x86_64.zip" -OutFile "old.zip"
 Expand-Archive "old.zip" -DestinationPath . -Force
 .\fleetorch.exe --version              # expect: 0.3.0
-.\fleetorch.exe upgrade                # should upgrade to 0.3.1 (or newer)
-.\fleetorch.exe --version              # expect: 0.3.1
+.\fleetorch.exe upgrade                # should upgrade to 0.4.0 (or newer)
+.\fleetorch.exe --version              # expect: 0.4.0
 .\fleetorch.exe upgrade                # second run: "already on …"
 .\fleetorch.exe upgrade --force        # forces re-download
 ```
 
 **Weak point:** upgrade only exists from v0.3.0 onward; v0.1.0/v0.2.0 users have to re-run `curl|sh` (Unix) or re-download manually (Windows). Verify the README documents this.
 
-**Windows-specific weak point:** on Windows, the running `.exe` is locked by the OS. The upgrade flow does an atomic rename (`fleetorch.exe.new → fleetorch.exe`). Verify this actually works — Windows historically refused to rename over a running executable, but recent Windows builds allow it. If it fails, the symptom will be "replace binary at …: Access is denied". Report it.
+**Windows-specific weak point:** Confirmed by Windows testers in v0.3.x: upgrading FROM v0.3.0 or v0.3.1 binaries on Windows fails with Access Denied because those binaries predate the rename-aside fix. From v0.3.2+ onward, upgrade works on Windows. If upgrading v0.4.0 to a newer v0.4.x fails with "Access is denied", report it — that would be a regression.
 
 ---
 
@@ -202,7 +202,7 @@ Get-ChildItem "$env:FLEETORCH_HOME\agents\"
 ```
 
 **Expected:**
-- `config show` prints seven paths, all rooted at the home you set
+- `config show` prints eight paths, all rooted at the home you set
 - `agent list` shows 5 seeded agents: codex, gemini, claude-haiku, claude-sonnet, claude-opus
 - The agents dir contains 5 TOML files
 - A `socket_dir` is listed (added in v0.3)

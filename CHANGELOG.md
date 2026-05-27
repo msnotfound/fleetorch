@@ -6,6 +6,25 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-05-27
+
+### Fixed
+- **Windows bare-command resolution.** Shipped agent TOMLs with `command = "powershell"` / `command = "codex"` etc. were being resolved as paths relative to the worktree instead of looked up on `%PATH%`. Supervisor now `exec.LookPath`s the command name before handing to go-pty. Reported by two independent Windows testers.
+- **`kill` on already-exited task is now a no-op.** Previously flipped `done` to `dead` in the display. Now prints a friendly "already exited" message and returns success without touching state.
+- **`dash` refuses non-TTY stdout.** Previously emitted raw ANSI alternate-screen sequences when piped or redirected. Now prints a clear message pointing at `--plain`.
+
+### Changed
+- Tempered the README's "Windows first-class" framing. Honest about the two known Windows issues still being tracked (long-lived agent state registration, v0.3.0/v0.3.1 self-upgrade lock).
+- Reconciled `docs/agent-types.md` worked examples with the actual shipped builtin TOMLs (separate commit by docs agent).
+- Added defensive logging behind `FLEETORCH_DEBUG=1` so the next Windows tester can pinpoint where long-lived spawn stalls.
+
+### Docs
+- `TESTING.md`: bumped version refs to v0.4.0; added windows_arm64 to the asset table; corrected expected `config show` path count (8, not 7); replaced speculative Windows-upgrade caveat with the confirmed-from-the-field reality.
+
+### Known issues carried into next release
+- Long-running Windows agent state.json / socket registration may still fail on some Windows configurations. Under investigation; logging added to help next tester localize the stall.
+- Real codex/gemini/claude end-to-end test on Windows is still blocked by the registration issue.
+
 ## [0.3.3] — 2026-05-27
 
 ### Added
@@ -74,7 +93,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - GoReleaser pipeline → GitHub Releases on every tag push.
 - `curl|sh` installer at `scripts/install.sh`.
 
-[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.0
 [0.3.3]: https://github.com/msnotfound/fleetorch/releases/tag/v0.3.3
 [0.3.2]: https://github.com/msnotfound/fleetorch/releases/tag/v0.3.2
 [0.3.1]: https://github.com/msnotfound/fleetorch/releases/tag/v0.3.1
