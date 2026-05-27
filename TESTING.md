@@ -428,6 +428,17 @@ args = ["exec", "--sandbox", "workspace-write", "--skip-git-repo-check"]
 ```
 If the codex CLI has changed these flags, fleetorch's spawn will fail. Check `codex --help` against the TOML.
 
+**Codex-specific quirk:** codex routinely **exits 0 without committing** the work it has done — files are staged in the worktree but no commit is created. After codex tasks finish, manually verify and commit if needed:
+
+```bash
+git -C ~/.local/share/fleetorch/worktrees/real-codex-1 status -s
+# If anything is uncommitted:
+git -C ~/.local/share/fleetorch/worktrees/real-codex-1 add -A
+git -C ~/.local/share/fleetorch/worktrees/real-codex-1 -c commit.gpgsign=false commit -m "manual finalize"
+```
+
+If you're asking codex itself to fill in this doc's findings template, the file it writes may end up uncommitted in its worktree — plan to retrieve it manually.
+
 ### 6b. gemini
 
 ```bash
@@ -618,5 +629,11 @@ If you're an autonomous agent reading this:
 4. **Skip 6a/6b/6c if your environment can't actually call those CLIs** — note it in findings and move on. Section 4 (concurrency with shechord) is the next-best stress test.
 5. **You may install fleetorch in your worktree** via `go install`, then call `$(go env GOPATH)/bin/fleetorch`. Don't rely on a system-wide install.
 6. **Don't trust your own success messages** without a verification step. After every `spawn`, run `list` and confirm the row is there. After every `kill`, run `list` and confirm status moved to `dead`/`failed`/`done`.
+
+### If you ARE codex or gemini running this test
+
+**Codex:** when you finish writing the findings file inside your worktree, also run `git add -A && git commit -m "test findings"` before exiting. Your default behavior is to exit-0 without committing, which leaves the human supervisor a recovery step. Commit first.
+
+**Gemini:** your sandbox restricts you to the cwd. If you can't read this file because it lives outside the worktree, ask the human to `cp TESTING.md` into your worktree before re-spawning you.
 
 Good hunting.
