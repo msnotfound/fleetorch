@@ -6,7 +6,21 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
-## [0.3.1] — 2026-05-27
+## [0.3.2] — 2026-05-27
+
+### Added
+- **`scripts/install.ps1`** — first-class PowerShell installer for Windows. One-liner: `irm https://raw.githubusercontent.com/msnotfound/fleetorch/main/scripts/install.ps1 | iex`. Detects arch (x86_64 / arm64), fetches the latest release, sha256-verifies the asset against the published checksums, extracts to `%LOCALAPPDATA%\Programs\fleetorch\`, and adds it to the user `PATH`.
+- **Windows arm64 build.** GoReleaser now produces `fleetorch_X.Y.Z_windows_arm64.zip` alongside x86_64.
+
+### Fixed
+- **`fleetorch upgrade` on Windows** no longer fails when the running `.exe` is locked. On rename failure, the upgrader moves the current binary to `fleetorch.exe.old` before sliding the new one into place, and best-effort sweeps `.old` files on subsequent upgrades. Unix behavior unchanged (direct atomic rename).
+
+### Docs
+- README rewritten with Windows-parity install instructions: PowerShell one-liner, manual download with `Invoke-WebRequest` + `Get-FileHash` checksum verification, `Expand-Archive` extract, user-PATH setup. No more "Windows is beta" framing — Windows is a first-class target.
+- New "Where things live on disk" table covering Linux / macOS / Windows defaults plus the `FLEETORCH_HOME` override.
+- CLI reference now lists every shipped command including `ledger`, `merge-resolve`, `upgrade`, `monitor`, and `agent edit`.
+- `list` output sample corrected to match the actual columns (`TASK-ID AGENT STATUS AGE BUDGET WORKTREE`).
+- Marketplace note updated: now scheduled for v0.4 (was incorrectly listed for v0.3 in earlier drafts).
 
 ### Added
 - Windows SIGWINCH polling: on Windows (which has no SIGWINCH signal), `attach` now polls the terminal size every 250ms and emits a resize frame only when it changes. Unix continues to use real SIGWINCH.
@@ -51,7 +65,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - GoReleaser pipeline → GitHub Releases on every tag push.
 - `curl|sh` installer at `scripts/install.sh`.
 
-[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/msnotfound/fleetorch/releases/tag/v0.3.2
 [0.3.1]: https://github.com/msnotfound/fleetorch/releases/tag/v0.3.1
 [0.3.0]: https://github.com/msnotfound/fleetorch/releases/tag/v0.3.0
 [0.2.0]: https://github.com/msnotfound/fleetorch/releases/tag/v0.2.0

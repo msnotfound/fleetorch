@@ -104,8 +104,7 @@ func doUpgrade(force bool) error {
 	}
 	self, _ = filepath.EvalSymlinks(self)
 
-	// Atomic rename across same filesystem; if /tmp is on different fs from
-	// the binary, fall back to copy.
+	// Stage the new binary next to the old one (same fs → fast rename).
 	staged := self + ".new"
 	if err := copyFile(extracted, staged); err != nil {
 		return err
@@ -114,10 +113,30 @@ func doUpgrade(force bool) error {
 		_ = os.Remove(staged)
 		return err
 	}
+
+	// Direct rename: works on Linux/macOS and on Windows when the .exe
+	// isn't actually locked. If that fails (typical for a running Windows
+	// .exe), move the current binary aside first, then move the new one
+	// into place. The .old file can't be deleted while we're running, but
+	// it gets cleaned up on the next upgrade or by `fleetorch upgrade`'s
+	// startup sweep.
 	if err := os.Rename(staged, self); err != nil {
-		_ = os.Remove(staged)
-		return fmt.Errorf("replace binary at %s: %w", self, err)
+		old := self + ".old"
+		_ = os.Remove(old) // best-effort cleanup of any previous .old
+		if mvErr := os.Rename(self, old); mvErr != nil {
+			_ = os.Remove(staged)
+			return fmt.Errorf("replace binary at %s: %w (and could not move running binary aside: %v)", self, err, mvErr)
+		}
+		if err2 := os.Rename(staged, self); err2 != nil {
+			// Restore so the user isn't left without a binary.
+			_ = os.Rename(old, self)
+			_ = os.Remove(staged)
+			return fmt.Errorf("replace binary at %s: %w", self, err2)
+		}
 	}
+
+	// Best-effort sweep: drop any stale .old left from a previous upgrade.
+	_ = os.Remove(self + ".old")
 
 	fmt.Printf("upgraded: %s\n", self)
 	return nil

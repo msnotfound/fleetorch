@@ -2,170 +2,274 @@
 
 **A fleet of orchestrated AI coding agents — in one binary.**
 
-`fleetorch` is a cross-platform tool for spawning, managing, and attaching to multiple AI coding agents running in parallel. It automates the heavy lifting of agent orchestration: creating isolated git worktrees, managing PTY-based execution, tracking costs, and providing a unified dashboard to monitor your fleet.
+`fleetorch` is a cross-platform CLI for spawning, managing, and attaching to multiple AI coding agents running in parallel. It handles the orchestration grunt-work: isolated git worktrees per agent, PTY-based execution with live multi-client attach, cross-platform terminal control, and a unified dashboard to watch the fleet.
+
+**Linux • macOS • Windows.** All first-class. One static binary, no runtime dependencies.
 
 ```bash
-# Install fleetorch
+# Linux / macOS
 curl -fsSL https://raw.githubusercontent.com/msnotfound/fleetorch/main/scripts/install.sh | sh
-
-# Spawn an agent for a task
+```
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/msnotfound/fleetorch/main/scripts/install.ps1 | iex
+```
+```bash
 fleetorch spawn claude-sonnet refactor-auth "Refactor AuthMiddleware to use JWT" --repo .
-
-# List all active agents
 fleetorch list
 ```
 
 ---
 
-## Why fleetorch?
+## Why fleetorch
 
-*   **Single Static Binary:** No runtime dependencies. No `tmux`, `jq`, or GNU coreutils required. Just one binary that works anywhere.
-*   **Cross-Platform:** Native support for Linux, macOS, and Windows (via ConPTY).
-*   **Plugin Model:** Easily add new agent types (Codex, Gemini, Claude, etc.) by dropping a TOML file into your config directory.
-*   **Live Attach:** Seamlessly attach to a running agent's live output from any terminal, even if it was started in the background.
-*   **Cost-Routed:** Intelligently route tasks across models (Codex → Gemini → Claude variants) to minimize spend while maximizing output.
+- **Single static binary.** No `tmux`, `jq`, bash, GNU coreutils, or PowerShell modules required at runtime.
+- **Truly cross-platform.** Linux, macOS, and Windows — each gets a native build for both x86_64 and arm64. No "Windows is beta" hand-waving; the same supervisor code runs everywhere via ConPTY on Windows and PTY on Unix.
+- **Plugin model.** Each agent type is a TOML file — drop one in to add a new agent, no recompile.
+- **Live attach with multi-client broadcast.** Multiple terminals can attach to the same task and see the same PTY stream. Detach with `Ctrl-] q`.
+- **Terminal resize works.** SIGWINCH on Unix; a 250ms size-polling proxy on Windows (which has no SIGWINCH). The agent's PTY follows your terminal in both cases.
+- **Cost-routed by default.** Codex / Gemini / Claude variants live side-by-side in the agent table — start cheap, climb only when needed.
+- **Self-updating.** `fleetorch upgrade` pulls the latest GitHub Release, sha256-verifies it, and swaps the running binary in place (with a Windows-safe rename-aside fallback).
 
 ---
 
 ## Install
 
-### Linux / macOS
+### Linux / macOS — one-liner
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/msnotfound/fleetorch/main/scripts/install.sh | sh
 ```
 
-### Windows (Beta)
-Download the `.zip` from the [releases page](https://github.com/msnotfound/fleetorch/releases), extract, and add the directory to your `PATH`. Windows support uses ConPTY (via go-pty) and is currently in beta — bug reports welcome.
+Installs to `~/.local/bin` if writable, else `/usr/local/bin`. Override with `FLEETORCH_BIN_DIR=/path/to/dir`.
 
-> **Attach caveat:** the bidirectional attach command relies on Unix-domain sockets (`AF_UNIX`), which require **Windows 10 1803 or newer**. On older Windows, `fleetorch attach` automatically falls back to `--follow` (read-only log tail). Use `fleetorch logs <id>` or `fleetorch attach <id> --follow` if attach can't connect.
+### Windows — one-liner
 
-### From Source
+In any PowerShell window (built-in PowerShell 5.1 works; PowerShell 7+ is fine):
+
+```powershell
+irm https://raw.githubusercontent.com/msnotfound/fleetorch/main/scripts/install.ps1 | iex
+```
+
+This installs to `%LOCALAPPDATA%\Programs\fleetorch\` and adds it to your **user** `PATH`. Override the destination with `$env:FLEETORCH_BIN_DIR`. Open a new PowerShell window after install for the PATH change to take effect.
+
+### Manual install (any platform)
+
+Pick the release asset for your OS/arch from [the releases page](https://github.com/msnotfound/fleetorch/releases/latest):
+
+| OS | Architecture | Asset |
+|---|---|---|
+| Linux | x86_64 | `fleetorch_X.Y.Z_linux_x86_64.tar.gz` |
+| Linux | arm64 | `fleetorch_X.Y.Z_linux_arm64.tar.gz` |
+| macOS | Intel | `fleetorch_X.Y.Z_macos_x86_64.tar.gz` |
+| macOS | Apple Silicon | `fleetorch_X.Y.Z_macos_arm64.tar.gz` |
+| Windows | x86_64 | `fleetorch_X.Y.Z_windows_x86_64.zip` |
+| Windows | arm64 | `fleetorch_X.Y.Z_windows_arm64.zip` |
+
+**Verify the checksum** (every release ships a `checksums.txt`):
+
+```bash
+# Unix
+sha256sum -c --ignore-missing checksums.txt
+```
+```powershell
+# Windows PowerShell
+$want = (Select-String -Path .\checksums.txt -Pattern 'fleetorch_.*_windows_x86_64\.zip').Line.Split()[0]
+$got  = (Get-FileHash .\fleetorch_*_windows_x86_64.zip -Algorithm SHA256).Hash.ToLower()
+if ($want -ne $got) { throw "checksum mismatch" } else { 'OK' }
+```
+
+Then extract:
+- **Unix:** `tar -xzf fleetorch_*.tar.gz` → `./fleetorch` binary, move it onto your `$PATH`.
+- **Windows:** `Expand-Archive fleetorch_*.zip -DestinationPath .` → `fleetorch.exe`, copy it somewhere on `%PATH%` (e.g. `%LOCALAPPDATA%\Programs\fleetorch\`).
+
+### From source (any platform)
+
+Requires Go 1.23+.
+
 ```bash
 go install github.com/msnotfound/fleetorch/cmd/fleetorch@latest
 ```
+
+### Self-update (v0.3.0+)
+
+Once you have v0.3.0 or newer installed, just:
+
+```bash
+fleetorch upgrade           # already-latest → no-op
+fleetorch upgrade --force   # re-download even if already on latest
+```
+
+The upgrader fetches the latest release, sha256-verifies the archive against the published `checksums.txt`, and atomically replaces the running binary. On Windows it handles the running-`.exe` lock by moving the old binary aside (`fleetorch.exe.old`) before the swap — the `.old` is cleaned up on the next upgrade.
+
+Users on v0.1.0 / v0.2.0 don't have the `upgrade` command yet — re-run the platform installer above to get to v0.3+.
 
 ---
 
 ## Quickstart
 
-1. **Spawn an agent:**
-   ```bash
-   fleetorch spawn claude-sonnet my-task "Refactor the database connection pool in internal/db" --repo .
-   ```
-   *Output:* `Task 'my-task' spawned with agent 'claude-sonnet' in worktree: ~/.local/share/fleetorch/worktrees/my-task`
+**Unix:**
 
-2. **Check status:**
-   ```bash
-   fleetorch list
-   ```
-   *Output:*
-   ```
-   ID       AGENT          STATUS   TURNS  BUDGET  START TIME
-   my-task  claude-sonnet  RUNNING  12/150 $0.45   2026-05-27 14:00
-   ```
+```bash
+fleetorch spawn claude-sonnet my-task "Refactor the database connection pool in internal/db" --repo .
+fleetorch list
+fleetorch attach my-task
+```
 
-3. **Attach to live PTY:**
-   ```bash
-   fleetorch attach my-task
-   ```
-   *Drops into the agent's live terminal — anything you type is sent to the agent, output streams back. Detach with `Ctrl-] q`. Multiple terminals can attach to the same task simultaneously.*
+**Windows (PowerShell):**
 
----
+```powershell
+fleetorch spawn claude-sonnet my-task "Refactor the database connection pool in internal/db" --repo .
+fleetorch list
+fleetorch attach my-task
+```
 
-## Agent Types
+`fleetorch list` will show something like:
 
-`fleetorch` comes seeded with 5 default agent types. Each is optimized for different workloads and cost profiles.
+```
+TASK-ID   AGENT          STATUS  AGE  BUDGET  WORKTREE
+my-task   claude-sonnet  active  3s   $2.00   ~/.local/share/fleetorch/worktrees/my-task
+```
 
-| Agent Type | Foundation | When to use |
-| :--- | :--- | :--- |
-| `codex` | GPT-4o (via Codex CLI) | Mechanical CRUD, bulk refactors, boilerplate, and unit tests. |
-| `gemini` | Gemini 1.5 Pro | Deep codebase analysis and long-document reading (1M+ context). |
-| `claude-haiku` | Claude 3 Haiku | Quick fixes, short structured tasks, and finishing touches. |
-| `claude-sonnet` | Claude 3.5 Sonnet | **Default Choice.** Complex architecture, design synthesis, and cross-file logic. |
-| `claude-opus` | Claude 3 Opus | Genuinely novel reasoning or high-stakes research where cost is secondary. |
+`fleetorch attach my-task` drops into the agent's live PTY — your keystrokes go to the agent, its output streams back. Detach with `Ctrl-] q`. Multiple terminals can attach to the same task simultaneously and all see the same stream.
+
+If you'd rather just tail the log (read-only): `fleetorch attach my-task --follow` or `fleetorch logs my-task`.
+
+For an interactive overview of the whole fleet: `fleetorch dash` (bubbletea TUI; `j/k` to navigate, capital `K` to kill the selected task, `r` to refresh, `q` to quit). `fleetorch dash --plain` falls back to a simple auto-refreshing table for SSH/dumb terminals.
 
 ---
 
-## The Cost Ladder
+## Where things live on disk
 
-Most parallel-agent tools default to the most expensive models, leading to unnecessary spend. `fleetorch` encourages a "Cost Ladder" approach:
+fleetorch follows OS conventions — XDG on Linux, `~/Library` on macOS, `%APPDATA%` / `%LOCALAPPDATA%` on Windows. All seven paths can be overridden to a single directory by setting **`FLEETORCH_HOME`** — useful for testing, portable installs, or sandboxing.
 
-**Codex → Gemini → Haiku → Sonnet → Opus**
+| Concept     | Linux                                         | macOS                                                  | Windows                                  |
+|-------------|-----------------------------------------------|--------------------------------------------------------|------------------------------------------|
+| Config dir  | `~/.config/fleetorch/`                        | `~/Library/Application Support/fleetorch/`             | `%APPDATA%\fleetorch\`                   |
+| Data dir    | `~/.local/share/fleetorch/`                   | `~/Library/Application Support/fleetorch/`             | `%LOCALAPPDATA%\fleetorch\`              |
+| Agent TOMLs | `~/.config/fleetorch/agents/`                 | `~/Library/Application Support/fleetorch/agents/`      | `%APPDATA%\fleetorch\agents\`            |
+| Worktrees   | `~/.local/share/fleetorch/worktrees/`         | `~/Library/Application Support/fleetorch/worktrees/`   | `%LOCALAPPDATA%\fleetorch\worktrees\`    |
+| Logs        | `~/.local/share/fleetorch/logs/`              | `~/Library/Application Support/fleetorch/logs/`        | `%LOCALAPPDATA%\fleetorch\logs\`         |
+| Sockets     | `~/.local/share/fleetorch/sockets/`           | `~/Library/Application Support/fleetorch/sockets/`     | `%LOCALAPPDATA%\fleetorch\sockets\`      |
+| state.json  | `~/.local/share/fleetorch/state.json`         | `~/Library/Application Support/fleetorch/state.json`   | `%LOCALAPPDATA%\fleetorch\state.json`    |
 
-Start with the cheapest model capable of the task. If a task is purely mechanical, `codex` or `gemini` will save you significant budget. Move up to `sonnet` or `opus` only when architectural reasoning or high-fidelity code generation is required.
+Run `fleetorch config show` at any time to print the resolved paths for your machine.
 
 ---
 
-## How it Works
+## Agent types
 
-`fleetorch` acts as a supervisor for your AI agents. When you spawn a task, it:
-1. Creates an isolated **Git Worktree** for the task, ensuring the agent doesn't conflict with your main working directory.
-2. Spawns the agent process inside a **PTY (Pseudo-Terminal)**.
-3. Pipes all output to a log file while allowing you to **attach** to the live session at any time.
-4. Maintains an atomic **State JSON** as the source of truth for all orchestration.
+fleetorch seeds 5 default agent types on first run. Each is a TOML file in your agents dir — edit any of them with `fleetorch agent edit <name>`.
 
-```mermaid
-graph TD
-    CLI[fleetorch CLI] --> Supervisor[Supervisor]
-    Supervisor --> PTY[PTY / ConPTY]
-    PTY --> Agent[Agent Process]
-    Agent --> Worktree[Git Worktree]
-    Supervisor --> State[State JSON]
-    Supervisor --> Logs[Log Files]
+| Agent | Wraps | Default budget | Default turns | When to use |
+|---|---|---|---|---|
+| `codex` | OpenAI Codex CLI | — | — | Mechanical refactors, boilerplate, test scaffolding. Free if you have OpenAI credits. |
+| `gemini` | Google Gemini CLI | — | — | Long-doc / wide-codebase reads (1M context). Sandboxes to cwd — pre-stage files. |
+| `claude-haiku` | `claude -p --model haiku` | $0.50 | 50 | Short structured tasks, finishers. ~$0.30–1 per module. |
+| `claude-sonnet` | `claude -p --model sonnet` | $2.00 | 150 | Architectural work, cross-file refactors, design synthesis. ~$5–15 per module. |
+| `claude-opus` | `claude -p --model opus` | $5.00 | 200 | Genuinely novel reasoning. Only with explicit authorization — expensive. |
+
+The cheap path is the default. Climb the ladder only when you need to.
+
+---
+
+## How it works
+
+Each `fleetorch spawn` forks a small **`fleetorch worker`** subprocess that owns the agent's PTY for its entire lifetime. The parent CLI returns immediately. The worker:
+
+1. Creates an isolated **git worktree** on a new `agent/<task-id>` branch (or a scratch dir, if no `--repo`).
+2. Opens a **cross-platform PTY** via [`go-pty`](https://github.com/aymanbagabas/go-pty) (real PTY on Unix, ConPTY on Windows).
+3. Spawns the agent process inside the PTY, tees output to a log file *and* a 4KiB ring buffer for attach replay.
+4. Listens on a per-task **Unix-domain socket** (Win10 1803+ supports `AF_UNIX`). `attach` clients connect there, exchange a small framed protocol (`[type:1][len:2BE][payload]`) carrying both data and terminal-resize messages, and proxy stdio bidirectionally.
+5. Updates `state.json` (file-locked, atomic rename) on start, status changes, and exit.
+
+```
+                          ┌──────────────────┐
+fleetorch spawn  ────────►│ fleetorch worker │── git worktree
+                          │    (per task)    │── PTY ── agent process
+                          └────────┬─────────┘── log file
+                                   │
+                              UNIX socket
+                                   │
+fleetorch attach ◄─────────────────┤
+fleetorch dash   ◄─────────────────┤  (multi-client)
+fleetorch list   ◄── state.json
 ```
 
 ---
 
-## CLI Reference
+## CLI reference
 
 | Command | Description |
-| :--- | :--- |
-| `spawn` | Create a new task and start an agent. |
-| `list` | Show all tracked tasks and their current status. |
-| `watch` | Snapshot or tail the logs of a specific task. |
-| `attach` | Drop into a task's live PTY (`--follow` for read-only log tail). |
-| `dash` | Interactive bubbletea TUI dashboard (`--plain` for an auto-refresh table). |
-| `kill` | Stop an agent and optionally clean up its worktree. |
-| `agent` | Manage agent-type plugins (list, add, remove). |
-| `config` | View or edit the global configuration. |
-| `logs` | View full history for a specific task. |
-| `version` | Display the current version of fleetorch. |
+|---|---|
+| `spawn <type> <id> <prompt>` | Create a worktree and start an agent. `--repo .` to fork from current repo. `--foreground` to skip detach. |
+| `list` | Status table of every tracked task (status, age, budget, worktree). |
+| `dash` | Interactive bubbletea TUI. `j/k` navigate, `K` kill selected, `r` refresh, `q` quit. `--plain` for an auto-refresh table. |
+| `attach <id>` | Drop into the task's live PTY (bidirectional). `--follow` for read-only log tail. Detach with `Ctrl-] q`. |
+| `watch <id> [--follow]` | Snapshot or tail logs. `--follow` is identical to `attach --follow`. |
+| `logs <id> [--full]` | Print the log file (last 200 lines by default). |
+| `kill <id> [--purge]` | SIGTERM the task; `--purge` also removes its worktree. |
+| `agent list \| add \| remove \| edit` | Manage agent-type plugins. `edit <name>` opens the TOML in `$EDITOR`. |
+| `config show \| edit` | Print resolved paths or open the config file in `$EDITOR`. |
+| `ledger` | Cumulative spawn counts per agent type. |
+| `merge-resolve <file>...` | Resolve git conflict blocks by concatenating both sides — port of the bash-era `auto_keep_both.py`. |
+| `upgrade [--force]` | Self-update to the latest GitHub release. |
+| `monitor [--interval 60s]` | Foreground narrator: polls the fleet and summarizes stuck/failed tasks via `claude-haiku` (~$0.05/hr). |
+| `--version`, `--help` | Standard. Per-command `--help` works too. |
 
 ---
 
-## Adding a New Agent Type
+## Adding a new agent type
 
-To add a new agent, create a TOML file in `~/.config/fleetorch/agents/`:
+Drop a TOML file into your agents dir (`fleetorch config show` reveals the path):
 
 ```toml
 # my-custom-agent.toml
 name = "my-custom-agent"
 command = "custom-agent-cli"
-args = ["--model", "turbo", "--prompt", "{prompt}"]
-prompt_arg = "{prompt}"
+args = ["--model", "turbo"]
+prompt_arg = "{prompt}"             # placeholder substituted at spawn time
 default_budget_usd = 1.50
 default_turns = 100
-sandbox = "worktree"
-streams_freely = true
+sandbox = "worktree"                # worktree | none
+streams_freely = true               # false = stdout is buffered (e.g. `claude -p`)
+notes = "Free-form description shown in agent list."
 ```
+
+Then `fleetorch agent list` will show it and `fleetorch spawn my-custom-agent ...` will use it. See `docs/agent-types.md` for the full schema.
 
 ---
 
-## Project Status
+## Project status
 
-**Current Version:** v0.2.0
+**Current version:** v0.3.2
 
-*   **Linux/macOS:** Working. End-to-end smoke-tested.
-*   **Windows:** Beta. Cross-compiles cleanly via ConPTY (go-pty); broader testing welcome via issues.
-*   **Attach:** Bidirectional PTY via per-task Unix socket. Multiple clients can attach to the same task.
-*   **Dashboard:** Interactive bubbletea TUI (with `--plain` fallback for dumb terminals).
-*   **Plugins:** Manual TOML placement only; agent marketplace planned for v0.3.
+- **Linux / macOS / Windows** — all first-class. Same supervisor, same socket protocol, same TUI.
+- **Architectures shipped per release:** linux x86_64+arm64, macOS x86_64+arm64, Windows x86_64+arm64 (six binaries).
+- **Attach.** Bidirectional PTY via per-task Unix-domain socket (Win10 1803+ for `AF_UNIX`; older Windows auto-falls back to `--follow`).
+- **Terminal resize.** SIGWINCH on Unix; 250 ms polling proxy on Windows. Both propagate to the agent's PTY.
+- **Self-update.** `fleetorch upgrade` works on all three OSes (with a rename-aside fallback for Windows's locked-`.exe` case).
+- **Dashboard.** Interactive bubbletea TUI; `--plain` for SSH/dumb terms.
+- **Plugins.** Manual TOML placement today. A remote `fleetorch agent install <url>` registry is planned for **v0.4**.
+
+### Known caveats
+
+- **Windows older than 10 1803** doesn't support `AF_UNIX`. `attach` automatically falls back to `--follow` (read-only). The rest of fleetorch — spawn, list, kill, dash, logs — works unchanged.
+- **Seeded agent TOMLs** are written against the codex / gemini / claude CLI flags as they existed at fleetorch's release. If any of those CLIs change flags upstream, edit the corresponding TOML (`fleetorch agent edit codex` etc.). PRs welcome to keep them current.
+- **Antivirus on Windows** may quarantine `fleetorch.exe` until you allow it — unsigned binaries are common to flag. Add an exclusion for `%LOCALAPPDATA%\Programs\fleetorch\` if needed.
 
 ---
 
 ## Contributing
 
-Issues and PRs welcome. fleetorch started as a private bash tool ([`orcha`](docs/migration-from-orcha.md)) — this is its first public release. Bug reports for non-Linux platforms especially appreciated.
+Issues and PRs welcome. fleetorch grew out of a private bash harness called [`orcha`](docs/migration-from-orcha.md) — this is its public form.
+
+**High-value areas for outside contribution right now:**
+
+- Real-world bug reports on Windows (especially around ConPTY, the AF_UNIX socket on Win11, antivirus interactions).
+- Stale-TOML PRs: if your codex / gemini / claude CLI version uses different flags than the seeded defaults, send a one-file patch to `internal/agents/builtin/`.
+- A demo GIF for the README hero. The placeholder slot is reserved.
+- v0.4 agent marketplace design and implementation.
 
 ## License
 
