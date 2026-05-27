@@ -6,6 +6,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.3.3] — 2026-05-27
+
+### Added
+- `TESTING.md` at the repo root: a 600-line end-to-end test plan with platform-specific install paths (Linux/macOS/Windows), a PowerShell appendix, and a findings-report template. Designed for both human testers and autonomous agents (Claude / Codex / Gemini) to follow top-to-bottom.
+
+### Docs
+- README: new "Known quirks of the wrapped agents" section covering codex's no-commit habit, gemini's cwd sandbox, and claude headless stdout buffering. These were previously only in the agent TOML notes column — now they're discoverable from the front page.
+- README: new "Testing" section linking to TESTING.md.
+
 ## [0.3.2] — 2026-05-27
 
 ### Added
@@ -65,7 +74,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - GoReleaser pipeline → GitHub Releases on every tag push.
 - `curl|sh` installer at `scripts/install.sh`.
 
-[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/msnotfound/fleetorch/releases/tag/v0.3.3
 [0.3.2]: https://github.com/msnotfound/fleetorch/releases/tag/v0.3.2
 [0.3.1]: https://github.com/msnotfound/fleetorch/releases/tag/v0.3.1
 [0.3.0]: https://github.com/msnotfound/fleetorch/releases/tag/v0.3.0

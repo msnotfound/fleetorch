@@ -171,6 +171,16 @@ fleetorch seeds 5 default agent types on first run. Each is a TOML file in your 
 
 The cheap path is the default. Climb the ladder only when you need to.
 
+### Known quirks of the wrapped agents
+
+These aren't fleetorch bugs — they're behaviors of the underlying CLIs that fleetorch can't paper over. Worth knowing:
+
+- **Codex routinely exits 0 without committing.** Files end up staged in the worktree but no commit is created. After `codex` tasks finish, check `git -C <worktree> status` and commit manually if needed. fleetorch's `agent list` flags this in the codex notes column.
+- **Gemini sandboxes to the current working directory.** It cannot read files outside the worktree fleetorch puts it in. If you want gemini to consume a file that lives elsewhere, copy it into the worktree before spawn.
+- **Claude headless (`claude -p`) buffers stdout.** A `claude-sonnet` agent can be working silently for 10+ minutes before any log lines appear. **Trust filesystem activity over log lines** — `ls <worktree>` and `git -C <worktree> status` will show progress even when the log looks frozen. fleetorch's `list` marks the task `idle` (not `dead`) in this case.
+
+These are all documented in the seeded agent TOMLs (`fleetorch agent list` shows the notes column) and in [TESTING.md](TESTING.md).
+
 ---
 
 ## How it works
@@ -259,6 +269,10 @@ Then `fleetorch agent list` will show it and `fleetorch spawn my-custom-agent ..
 - **Antivirus on Windows** may quarantine `fleetorch.exe` until you allow it — unsigned binaries are common to flag. Add an exclusion for `%LOCALAPPDATA%\Programs\fleetorch\` if needed.
 
 ---
+
+## Testing
+
+End-to-end test plan: [TESTING.md](TESTING.md). It walks a human (or a coding agent like Claude / Codex / Gemini) through the full install → spawn → attach → kill flow on Linux, macOS, and Windows, and lists the known weak points to probe specifically. If you find a real bug, please open an issue with the relevant section number.
 
 ## Contributing
 
