@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"strings"
 	"sync"
@@ -45,6 +46,9 @@ type entry struct {
 	done   chan struct{}
 	exit   int
 	exitMu sync.Mutex
+
+	lnMu sync.Mutex
+	ln   net.Listener
 }
 
 // New returns a Manager. paths is used to anchor worktrees/logs paths; the
@@ -117,6 +121,10 @@ func (m *Manager) Spawn(ctx context.Context, spec types.SpawnSpec) (*types.Task,
 
 	go e.copyPTY()
 	go e.wait()
+	if spec.Socket != "" {
+		task.Socket = spec.Socket
+		go e.serveSocket(spec.Socket)
+	}
 
 	return cloneTask(task), nil
 }

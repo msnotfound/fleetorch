@@ -29,6 +29,7 @@ func newConfigCmdReal() *cobra.Command {
 				fmt.Printf("agents_dir:    %s\n", p.AgentsDir)
 				fmt.Printf("worktree_dir:  %s\n", p.WorktreeDir)
 				fmt.Printf("log_dir:       %s\n", p.LogDir)
+				fmt.Printf("socket_dir:    %s\n", p.SocketDir)
 				fmt.Printf("state_file:    %s\n", p.StateFile)
 				fmt.Printf("config_file:   %s\n", p.ConfigFile)
 				return nil

@@ -85,6 +85,7 @@ func doSpawn(agentName, taskID, prompt, repo string, budget float64, turns int, 
 	}
 
 	log := filepath.Join(paths.LogDir, taskID+".log")
+	sock := filepath.Join(paths.SocketDir, taskID+".sock")
 
 	spec := types.SpawnSpec{
 		ID:        taskID,
@@ -92,6 +93,7 @@ func doSpawn(agentName, taskID, prompt, repo string, budget float64, turns int, 
 		Prompt:    resolvePrompt(prompt),
 		Worktree:  worktree,
 		Log:       log,
+		Socket:    sock,
 		BudgetUSD: pickBudget(agent, budget),
 		Turns:     pickTurns(agent, turns),
 		Model:     model,

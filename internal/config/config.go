@@ -18,6 +18,7 @@ type Paths struct {
 	AgentsDir   string // ConfigDir/agents (agent-type TOMLs)
 	WorktreeDir string // DataDir/worktrees
 	LogDir      string // DataDir/logs
+	SocketDir   string // DataDir/sockets (per-task control sockets)
 	StateFile   string // DataDir/state.json
 	ConfigFile  string // ConfigDir/config.toml
 }
@@ -51,6 +52,7 @@ func layoutUnder(configRoot, dataRoot string) Paths {
 		AgentsDir:   filepath.Join(configRoot, "agents"),
 		WorktreeDir: filepath.Join(dataRoot, "worktrees"),
 		LogDir:      filepath.Join(dataRoot, "logs"),
+		SocketDir:   filepath.Join(dataRoot, "sockets"),
 		StateFile:   filepath.Join(dataRoot, "state.json"),
 		ConfigFile:  filepath.Join(configRoot, "config.toml"),
 	}
@@ -87,7 +89,7 @@ func userDataDir() (string, error) {
 // EnsureDirs creates all required directories with 0o755 permissions.
 // Safe to call repeatedly.
 func (p Paths) EnsureDirs() error {
-	for _, d := range []string{p.ConfigDir, p.AgentsDir, p.DataDir, p.WorktreeDir, p.LogDir} {
+	for _, d := range []string{p.ConfigDir, p.AgentsDir, p.DataDir, p.WorktreeDir, p.LogDir, p.SocketDir} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			return fmt.Errorf("mkdir %s: %w", d, err)
 		}

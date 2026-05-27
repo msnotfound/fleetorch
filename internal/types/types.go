@@ -22,6 +22,7 @@ type Task struct {
 	Agent     string    `json:"agent"`         // agent-type name
 	Worktree  string    `json:"worktree"`      // absolute path
 	Log       string    `json:"log"`           // absolute path to log file
+	Socket    string    `json:"socket,omitempty"` // absolute path to control socket
 	PID       int       `json:"pid"`
 	StartedAt time.Time `json:"started_at"`
 	Status    Status    `json:"status"`
@@ -51,6 +52,7 @@ type SpawnSpec struct {
 	Prompt    string
 	Worktree  string
 	Log       string
+	Socket    string // optional Unix-domain control socket for live attach
 	BudgetUSD float64
 	Turns     int
 	Model     string

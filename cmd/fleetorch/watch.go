@@ -12,7 +12,7 @@ func newWatchCmdReal() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if follow {
-				return doAttach(args[0])
+				return doAttach(args[0], true)
 			}
 			return doLogs(args[0], false)
 		},
