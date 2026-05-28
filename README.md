@@ -231,22 +231,36 @@ fleetorch list   ◄── state.json
 
 | Command | Description |
 |---|---|
+**Core lifecycle**
+
+| Command | Description |
+|---|---|
 | `spawn <type> <id> <prompt>` | Create a worktree and start an agent. `--repo .` to fork from current repo. `--foreground` to skip detach. |
-| `list` | Status table of every tracked task (status, age, budget, worktree). |
-| `dash` | Interactive bubbletea TUI. `j/k` navigate, `K` kill selected, `r` refresh, `q` quit. `--plain` for an auto-refresh table. |
+| `list [--json]` | Status table of every tracked task (status, age, budget, worktree). `--json` emits a structured array — pipe to `jq` for scripting. |
+| `kill <id> [--purge]` | SIGTERM the task; `--purge` also removes its worktree. No-op on already-exited tasks. |
+| `prune [--dry-run] [--older-than DUR] [--keep-worktrees \| --keep-sockets]` | Garbage-collect finished tasks. Removes state rows, worktrees, sockets, and orphan socket files. Use `--dry-run` to preview. |
+
+**Inspect**
+
+| Command | Description |
+|---|---|
 | `attach <id>` | Drop into the task's live PTY (bidirectional). `--follow` for read-only log tail. Detach with `Ctrl-] q`. |
 | `watch <id> [--follow]` | Snapshot or tail logs. `--follow` is identical to `attach --follow`. |
-| `logs <id> [--full \| --err]` | Print the log file (last 200 lines by default). `--err` shows the worker-side error sidecar — useful when `spawn` "succeeded" but `list` shows nothing. |
-| `prune [--dry-run] [--older-than DUR] [--keep-worktrees \| --keep-sockets]` | Garbage-collect finished tasks. Removes state rows, worktrees, sockets, and orphan socket files. Use `--dry-run` to preview. |
-| `list [--json]` | Table of tracked tasks. `--json` emits a structured array — pipe to `jq` for scripting. |
-| `doctor [--json]` | Print fleetorch version, OS, paths, dependency status, agent inventory, state stats, and any obvious warnings. Paste into bug reports. |
-| `kill <id> [--purge]` | SIGTERM the task; `--purge` also removes its worktree. |
+| `logs <id> [--full \| --err]` | Print the log file (last 200 lines by default). `--err` shows the worker-side error sidecar — the place to look when `spawn` "succeeded" but `list` shows nothing. |
+| `dash [--plain]` | Interactive bubbletea TUI. `j/k` navigate, `K` kill selected, `r` refresh, `q` quit. `--plain` falls back to an auto-refresh table for SSH/dumb terms. |
+| `doctor [--json]` | One-stop diagnostic: fleetorch version, OS, paths, dependency status, agent inventory, state stats, and warnings. Paste into bug reports. |
+
+**Manage**
+
+| Command | Description |
+|---|---|
 | `agent list \| add \| remove \| edit` | Manage agent-type plugins. `edit <name>` opens the TOML in `$EDITOR`. |
 | `config show \| edit` | Print resolved paths or open the config file in `$EDITOR`. |
 | `ledger` | Cumulative spawn counts per agent type. |
 | `merge-resolve <file>...` | Resolve git conflict blocks by concatenating both sides — port of the bash-era `auto_keep_both.py`. |
 | `upgrade [--force]` | Self-update to the latest GitHub release. |
 | `monitor [--interval 60s]` | Foreground narrator: polls the fleet and summarizes stuck/failed tasks via `claude-haiku` (~$0.05/hr). |
+| `completion bash\|zsh\|fish\|powershell` | Emit a shell completion script. See the [Shell completion](#shell-completion-any-platform) section above. |
 | `--version`, `--help` | Standard. Per-command `--help` works too. |
 
 ---
@@ -274,7 +288,7 @@ Then `fleetorch agent list` will show it and `fleetorch spawn my-custom-agent ..
 
 ## Project status
 
-**Current version:** v0.4.1
+**Current version:** v0.4.5
 
 - **Linux / macOS** — fully supported and first-class. All features working as designed.
 - **Windows** — builds clean and ships x86_64 and arm64. HF-1 was fixed in v0.4.1: live long-running agents are now identified using Windows process APIs.

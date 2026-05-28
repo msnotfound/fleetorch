@@ -6,6 +6,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.4.5] — 2026-05-28
+
+Docs-only catch-up. No binary changes from v0.4.4.
+
+### Docs
+- README CLI reference reorganised into three groups (Core lifecycle, Inspect, Manage) and dedupes the duplicated `list` row that snuck in during v0.4.4. Adds `completion` row with a link to the shell-completion section.
+- README "Current version" bumped to v0.4.5 (was stuck at v0.4.1 since the v0.4.1 PR).
+- TESTING.md adds `fleetorch doctor` as the recommended Section 0 pre-flight ("paste the output verbatim at the top of your findings file"); adds §3m (doctor + list --json), §3n (logs --err), §3o (prune) covering the v0.4.3 and v0.4.4 additions; updates §7 failure-mode items to reflect the v0.4.0 behavior changes (kill no-op, dash refuses non-TTY) and adds two new items for silent-worker-failure diagnosis and post-run cleanup.
+- docs/migration-from-orcha.md command-mapping table expanded with monitor, merge-resolve, prune, list --json, doctor, upgrade, completion. Adds a "New capabilities not present in bash orcha" section.
+
 ## [0.4.4] — 2026-05-28
 
 ### Added
@@ -128,7 +138,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - GoReleaser pipeline → GitHub Releases on every tag push.
 - `curl|sh` installer at `scripts/install.sh`.
 
-[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.4.4...HEAD
+[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.4.5...HEAD
+[0.4.5]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.5
 [0.4.4]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.4
 [0.4.3]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.3
 [0.4.2]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.2

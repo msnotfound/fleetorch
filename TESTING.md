@@ -49,6 +49,16 @@ which claude           # Anthropic Claude CLI (Claude Code or the `claude` binar
 
 If none of these are installed, **skip Section 6** and note it in the findings.
 
+### Once fleetorch is installed (after Section 1), the fastest pre-flight is:
+
+```bash
+fleetorch doctor
+```
+
+This prints version + OS + arch + every path + dependency status (git, codex, gemini, claude with their versions if present) + agent inventory + state stats + warnings. **Paste the output verbatim at the top of your findings file** — it answers every "what environment was this?" question in one shot.
+
+For machine-readable form: `fleetorch doctor --json`.
+
 ---
 
 ## 1. Install fleetorch
@@ -354,6 +364,38 @@ $FT --help                         # all commands listed
 $FT spawn --help                   # flag docs make sense
 ```
 
+### 3m. doctor + list --json (added in v0.4.4)
+
+```bash
+$FT doctor                          # human-readable env report
+$FT doctor --json | head -20        # structured form
+$FT list --json                     # JSON array of tasks
+```
+
+**Expected:** `doctor` prints version/OS/paths/deps/agents/state with `OK`/`--` markers per dependency. Warnings section is empty if everything is healthy. `list --json` produces a parseable JSON array (empty `[]` if no tasks).
+
+### 3n. logs --err (added in v0.4.3)
+
+After running anything in §3a–§3l:
+
+```bash
+$FT logs <task-id> --err   # prints worker-side error sidecar, "(no worker errors recorded for this task)" if clean
+```
+
+This is the diagnostic for the **silent-spawn-failure** case — when `fleetorch spawn` prints `spawned: X` but `fleetorch list` shows nothing. The detached worker writes startup errors to `<DataDir>/errors/<id>.err` and `logs --err` surfaces them.
+
+### 3o. prune (added in v0.4.3)
+
+After your dry-exercise above, clean up:
+
+```bash
+$FT prune --dry-run      # preview what would be removed (state rows, worktrees, sockets, err logs)
+$FT prune                # actually do it
+$FT list                 # confirm empty
+```
+
+**Expected:** dry-run lists every finished task with its size; the real run removes them plus any orphan `.sock` files. Running tasks are skipped unless `--include-running` is set.
+
 ---
 
 ## 4. Concurrency — real fleet behavior
@@ -474,13 +516,15 @@ Try to break it. Document each.
 1. **Spawn a non-existent agent:** `$FT spawn nonsense t-x "x"` — expect a clear error, not a crash.
 2. **Attach to a task that doesn't exist:** `$FT attach ghost` — expect a clean "task not found" error.
 3. **Spawn the same task-id twice:** `$FT spawn shechord dup "x"; $FT spawn shechord dup "x"` — expect the second to either suffix with `-2` or error clearly.
-4. **Kill a task that's already done:** spawn, wait for exit, then `$FT kill`. Should not error.
+4. **Kill a task that's already done:** spawn, wait for exit, then `$FT kill`. Since v0.4.0 this is a no-op — expect `task <id> already exited (status: done); nothing to kill` and exit 0. Status stays `done`, *not* `dead`.
 5. **Spawn with a non-existent --repo:** `$FT spawn shechord t "x" --repo /no/such/path` — expect a clean error.
 6. **Spawn with a bare `@/non/existent/prompt`:** prompt resolution should fall back gracefully.
 7. **Delete state.json mid-run:** `rm /tmp/fo-home/state.json` while tasks are running; then `$FT list`. Does it recover or panic?
 8. **Two `fleetorch list` running concurrently against the same store:** stress the flock.
 9. **Wide terminal vs narrow terminal for `dash`:** does the layout break at 60 cols? 200 cols?
-10. **Pipe `dash` output (no TTY):** does it fall back, or print escape codes? It should error or refuse.
+10. **Pipe `dash` output (no TTY):** since v0.4.0 should refuse cleanly with `dash requires a terminal. Use --plain for a non-interactive table.` and exit 1.
+11. **Silent worker failure:** install a deliberately-broken agent TOML (e.g. `command = "this-binary-does-not-exist"`), `$FT spawn broken t-x "x"`. The parent CLI prints `spawned: t-x` — `$FT list` may show nothing. Run `$FT logs t-x --err` — should reveal the underlying `exec.LookPath` error.
+12. **Cleanup after a run:** `$FT prune --dry-run` should list every finished task with its disk usage; `$FT prune` actually removes them plus orphan sockets. Re-run `$FT list` — should be empty (or only contain still-running tasks).
 
 ---
 
