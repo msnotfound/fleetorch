@@ -45,8 +45,17 @@ func newWorkerCmd() *cobra.Command {
 func runWorker(spec types.SpawnSpec) error {
 	paths, err := config.Resolve()
 	if err != nil {
+		// Can't even resolve paths — write to a best-effort temp location.
+		writeWorkerError(os.TempDir(), spec.ID, fmt.Errorf("config.Resolve: %w", err))
 		return err
 	}
+
+	// Always-on error sidecar. The worker is detached (stderr=nil), so any
+	// error it prints is invisible without redirection. Capturing startup
+	// errors here means `spawn` failures stop being silent.
+	errSink := openWorkerErrLog(paths.DataDir, spec.ID)
+	defer errSink.Close()
+
 	debug := os.Getenv("FLEETORCH_DEBUG") == "1"
 	if debug {
 		debugLog, openErr := os.OpenFile(
@@ -59,6 +68,12 @@ func runWorker(spec types.SpawnSpec) error {
 			log.SetOutput(debugLog)
 			log.Printf("[fleetorch-debug] worker %s: started pid=%d", spec.ID, os.Getpid())
 		}
+	} else {
+		// Route the log package into the err sidecar so any late warning is
+		// captured. We do NOT reassign os.Stderr — direct writes to it from
+		// other packages would attempt to call methods on something that
+		// might not be a real *os.File (when the sidecar couldn't open).
+		log.SetOutput(errSink)
 	}
 
 	st := store.New(paths.StateFile)
@@ -66,6 +81,7 @@ func runWorker(spec types.SpawnSpec) error {
 
 	task, err := mgr.Spawn(context.Background(), spec)
 	if err != nil {
+		writeWorkerError(paths.DataDir, spec.ID, fmt.Errorf("supervisor.Spawn: %w", err))
 		return err
 	}
 	if err := st.AddTask(task); err != nil {

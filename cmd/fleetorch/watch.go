@@ -14,7 +14,7 @@ func newWatchCmdReal() *cobra.Command {
 			if follow {
 				return doAttach(args[0], true)
 			}
-			return doLogs(args[0], false)
+			return doLogs(args[0], false, false)
 		},
 	}
 	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "Tail the log (same as `attach`)")

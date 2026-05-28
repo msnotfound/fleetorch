@@ -12,6 +12,14 @@
 
 $ErrorActionPreference = 'Stop'
 
+# Suppress the PowerShell 5.1 progress bar — its rendering cripples
+# Invoke-WebRequest's throughput (~10x slower on PS5.1, less on PS7+).
+# We restore the original preference before exit so we don't leak into
+# the user's session if they ran this script (not iex) from a profile.
+$origProgress = $ProgressPreference
+$ProgressPreference = 'SilentlyContinue'
+try {
+
 $Repo = 'msnotfound/fleetorch'
 
 function Resolve-Arch {
@@ -117,3 +125,10 @@ if ($env:FLEETORCH_NO_PATH -ne '1') {
 Write-Host ''
 Write-Host "fleetorch is ready." -ForegroundColor Green
 Write-Host "  open a new PowerShell window and run:  fleetorch --help"
+Write-Host ''
+Write-Host "  Optional — install tab completion:" -ForegroundColor Gray
+Write-Host "    fleetorch completion powershell | Out-File -Append `$PROFILE" -ForegroundColor Gray
+
+} finally {
+    $ProgressPreference = $origProgress
+}

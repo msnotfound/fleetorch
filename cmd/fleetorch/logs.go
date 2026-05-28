@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -12,24 +13,48 @@ import (
 )
 
 func newLogsCmdReal() *cobra.Command {
-	var full bool
+	var full, errOnly bool
 	cmd := &cobra.Command{
 		Use:   "logs <task-id>",
 		Short: "Print the log file for a task",
-		Args:  cobra.ExactArgs(1),
+		Long: `Print the log file for a task.
+
+By default prints the last 200 lines. --full prints the entire file.
+--err prints the worker-side error sidecar (DataDir/errors/<id>.err),
+which is where startup failures land when 'spawn' succeeds at the parent
+but the detached worker dies before registering — i.e. the case where
+'list' shows nothing despite a 'spawned: <id>' message.`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return doLogs(args[0], full)
+			return doLogs(args[0], full, errOnly)
 		},
 	}
 	cmd.Flags().BoolVar(&full, "full", false, "Print the full log instead of the last 200 lines")
+	cmd.Flags().BoolVar(&errOnly, "err", false, "Print the worker-side error sidecar instead of the agent log")
 	return cmd
 }
 
-func doLogs(taskID string, full bool) error {
+func doLogs(taskID string, full, errOnly bool) error {
 	paths, err := config.Resolve()
 	if err != nil {
 		return err
 	}
+
+	if errOnly {
+		errPath := filepath.Join(paths.DataDir, workerErrSubdir, taskID+".err")
+		f, err := os.Open(errPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				fmt.Println("(no worker errors recorded for this task)")
+				return nil
+			}
+			return err
+		}
+		defer f.Close()
+		_, err = io.Copy(os.Stdout, f)
+		return err
+	}
+
 	st := store.New(paths.StateFile)
 	task, err := st.GetTask(taskID)
 	if err != nil {

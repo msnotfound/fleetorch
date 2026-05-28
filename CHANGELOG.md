@@ -6,6 +6,18 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.4.3] — 2026-05-28
+
+### Added
+- **`fleetorch prune`** — garbage-collect finished tasks. Removes state rows, worktrees, control sockets, and worker error logs. Sweeps orphan `.sock` files left by crashed workers. Supports `--dry-run`, `--older-than DUR`, `--keep-worktrees`, `--keep-sockets`, `--keep-errors`, `--include-running` (the last for cleaning up after a real crash). Reports per-task disk usage and total reclaimable size.
+- **Worker error sidecar** — every detached `fleetorch worker` now writes startup errors to `<DataDir>/errors/<task-id>.err`, regardless of `FLEETORCH_DEBUG`. Previously, if the worker failed before registering state (bad agent command, log-file permission, PTY allocation), the user got a happy `spawned: X` message but `list` showed nothing and there was no diagnostic. Now: `fleetorch logs <id> --err` surfaces the captured error.
+- **`fleetorch logs --err`** — print the worker-side error sidecar instead of the agent log.
+- **README "Shell completion" section** — documents `fleetorch completion bash|zsh|fish|powershell`, including the PowerShell `Out-File -Append $PROFILE` recipe.
+
+### Changed
+- **`install.ps1` is now ~10× faster on PowerShell 5.1.** Sets `$ProgressPreference = 'SilentlyContinue'` around the `Invoke-WebRequest` calls (PS5.1's progress UI is notoriously expensive). Restored before exit so the user's session preference isn't leaked.
+- **`install.ps1` prints a completion hint** at the end — copy-paste line to install PowerShell tab completion to `$PROFILE`.
+
 ## [0.4.2] — 2026-05-28
 
 ### Fixed
@@ -109,7 +121,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - GoReleaser pipeline → GitHub Releases on every tag push.
 - `curl|sh` installer at `scripts/install.sh`.
 
-[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.3
 [0.4.2]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.2
 [0.4.1]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.1
 [0.4.0]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.0

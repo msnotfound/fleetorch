@@ -34,6 +34,7 @@ func main() {
 		newMergeResolveCmd(),
 		newUpgradeCmd(),
 		newMonitorCmd(),
+		newPruneCmd(),
 		newWorkerCmd(),
 	)
 

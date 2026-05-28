@@ -91,6 +91,25 @@ Requires Go 1.23+.
 go install github.com/msnotfound/fleetorch/cmd/fleetorch@latest
 ```
 
+### Shell completion (any platform)
+
+fleetorch ships completions for the major shells via cobra. Install once and forget:
+
+```bash
+# bash
+fleetorch completion bash | sudo tee /etc/bash_completion.d/fleetorch
+# zsh
+fleetorch completion zsh > "${fpath[1]}/_fleetorch"
+# fish
+fleetorch completion fish > ~/.config/fish/completions/fleetorch.fish
+```
+```powershell
+# PowerShell — append to your profile (creates $PROFILE if it doesn't exist)
+if (-not (Test-Path $PROFILE)) { New-Item -ItemType File -Path $PROFILE -Force | Out-Null }
+fleetorch completion powershell | Out-File -Append -Encoding utf8 $PROFILE
+. $PROFILE  # reload current session
+```
+
 ### Self-update (v0.3.0+)
 
 Once you have v0.3.0 or newer installed, just:
@@ -217,7 +236,8 @@ fleetorch list   ◄── state.json
 | `dash` | Interactive bubbletea TUI. `j/k` navigate, `K` kill selected, `r` refresh, `q` quit. `--plain` for an auto-refresh table. |
 | `attach <id>` | Drop into the task's live PTY (bidirectional). `--follow` for read-only log tail. Detach with `Ctrl-] q`. |
 | `watch <id> [--follow]` | Snapshot or tail logs. `--follow` is identical to `attach --follow`. |
-| `logs <id> [--full]` | Print the log file (last 200 lines by default). |
+| `logs <id> [--full \| --err]` | Print the log file (last 200 lines by default). `--err` shows the worker-side error sidecar — useful when `spawn` "succeeded" but `list` shows nothing. |
+| `prune [--dry-run] [--older-than DUR] [--keep-worktrees \| --keep-sockets]` | Garbage-collect finished tasks. Removes state rows, worktrees, sockets, and orphan socket files. Use `--dry-run` to preview. |
 | `kill <id> [--purge]` | SIGTERM the task; `--purge` also removes its worktree. |
 | `agent list \| add \| remove \| edit` | Manage agent-type plugins. `edit <name>` opens the TOML in `$EDITOR`. |
 | `config show \| edit` | Print resolved paths or open the config file in `$EDITOR`. |
