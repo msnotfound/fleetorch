@@ -286,6 +286,7 @@ func (e *entry) copyPTY() {
 
 func (e *entry) wait() {
 	err := e.cmd.Wait()
+	debugf("process %s: cmd.Wait returned err=%v", e.task.ID, err)
 	e.exitMu.Lock()
 	if err == nil {
 		e.exit = 0

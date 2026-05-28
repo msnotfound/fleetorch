@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -45,6 +47,19 @@ func runWorker(spec types.SpawnSpec) error {
 	if err != nil {
 		return err
 	}
+	debug := os.Getenv("FLEETORCH_DEBUG") == "1"
+	if debug {
+		debugLog, openErr := os.OpenFile(
+			filepath.Join(paths.DataDir, "debug-"+spec.ID+".log"),
+			os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644,
+		)
+		if openErr == nil {
+			defer debugLog.Close()
+			os.Stderr = debugLog
+			log.SetOutput(debugLog)
+			log.Printf("[fleetorch-debug] worker %s: started pid=%d", spec.ID, os.Getpid())
+		}
+	}
 
 	st := store.New(paths.StateFile)
 	mgr := supervisor.New(paths)
@@ -58,7 +73,13 @@ func runWorker(spec types.SpawnSpec) error {
 		fmt.Fprintf(os.Stderr, "warning: AddTask failed: %v\n", err)
 	}
 
+	if debug {
+		log.Printf("[fleetorch-debug] worker %s: task registered, waiting", spec.ID)
+	}
 	exitCode, _ := mgr.Wait(spec.ID)
+	if debug {
+		log.Printf("[fleetorch-debug] worker %s: agent exited code=%d", spec.ID, exitCode)
+	}
 	finalStatus := types.StatusDone
 	if exitCode != 0 {
 		finalStatus = types.StatusFailed
