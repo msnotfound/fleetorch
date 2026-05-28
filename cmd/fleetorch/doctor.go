@@ -99,12 +99,12 @@ type AgentsInfo struct {
 }
 
 type StateInfo struct {
-	TaskCount      int   `json:"task_count"`
-	Active         int   `json:"active"`
-	Done           int   `json:"done"`
-	Failed         int   `json:"failed"`
-	WorktreeBytes  int64 `json:"worktree_bytes"`
-	LogBytes       int64 `json:"log_bytes"`
+	TaskCount     int   `json:"task_count"`
+	Active        int   `json:"active"`
+	Done          int   `json:"done"`
+	Failed        int   `json:"failed"`
+	WorktreeBytes int64 `json:"worktree_bytes"`
+	LogBytes      int64 `json:"log_bytes"`
 }
 
 func collectReport() (*Report, error) {
@@ -145,7 +145,7 @@ func collectReport() (*Report, error) {
 		ConfigFile:    paths.ConfigFile,
 	}
 
-	for _, name := range []string{"git", "codex", "gemini", "claude"} {
+	for _, name := range []string{"git", "agy", "codex", "gemini", "claude"} {
 		r.Dependencies = append(r.Dependencies, probeDep(name))
 	}
 
@@ -236,6 +236,10 @@ func collectWarnings(r *Report) []string {
 		}
 		// Map CLI presence to agent TOML availability. Mismatch = warning.
 		switch d.Name {
+		case "agy":
+			if agentNames["agy"] && !d.Found {
+				warns = append(warns, "agy CLI not on PATH; `agy` agent type will fail at spawn time")
+			}
 		case "codex":
 			if agentNames["codex"] && !d.Found {
 				warns = append(warns, "codex CLI not on PATH; `codex` agent type will fail at spawn time")

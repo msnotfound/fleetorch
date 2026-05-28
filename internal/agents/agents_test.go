@@ -75,6 +75,7 @@ func TestSeedDefaultsPopulatesEmptyDir(t *testing.T) {
 	}
 
 	for _, name := range []string{
+		"agy.toml",
 		"codex.toml",
 		"gemini.toml",
 		"claude-haiku.toml",

@@ -6,6 +6,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Added
+- Seeded `agy` agent type for the Google Antigravity CLI (`agy --print`) plus doctor dependency coverage.
+
 ## [0.4.5] — 2026-05-28
 
 Docs-only catch-up. No binary changes from v0.4.4.

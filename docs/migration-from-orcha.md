@@ -67,7 +67,7 @@ If you had custom agent logic in `orch-spawn`, you will need to create a corresp
 
 ## New capabilities not present in bash orcha
 
-- **`fleetorch doctor`** — one-shot environment report covering version, OS, paths, dependency presence (git/codex/gemini/claude with versions), agent inventory, state stats, and warnings. Bash orcha required ad-hoc shell-script probing for any of these.
+- **`fleetorch doctor`** — one-shot environment report covering version, OS, paths, dependency presence (git/agy/codex/gemini/claude with versions), agent inventory, state stats, and warnings. Bash orcha required ad-hoc shell-script probing for any of these.
 - **`fleetorch prune`** — garbage-collect finished tasks with `--dry-run` preview and granular `--keep-worktrees` / `--keep-sockets` controls. Bash orcha left worktrees on disk and required manual cleanup.
 - **Worker-side error sidecar** — `fleetorch logs <id> --err` surfaces startup failures of the detached worker. The bash equivalent silently lost stderr.
 - **Self-update** — `fleetorch upgrade` (since v0.3.0) fetches the latest release, sha256-verifies, and atomically swaps the running binary (with Windows-safe rename-aside fallback).
