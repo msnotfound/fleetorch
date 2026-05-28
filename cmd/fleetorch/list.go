@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,13 +17,80 @@ import (
 )
 
 func newListCmdReal() *cobra.Command {
-	return &cobra.Command{
+	var asJSON bool
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "Show status of all tracked tasks",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if asJSON {
+				return doListJSON()
+			}
 			return doList()
 		},
 	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Emit JSON array instead of the table")
+	return cmd
+}
+
+// TaskRow is the JSON shape of a single task in `list --json` output.
+// Kept separate from types.Task so we can compute derived fields (live
+// status, age in seconds) without polluting the storage format.
+type TaskRow struct {
+	ID         string       `json:"id"`
+	Agent      string       `json:"agent"`
+	Status     types.Status `json:"status"`
+	LiveStatus types.Status `json:"live_status"`
+	AgeSeconds int64        `json:"age_seconds"`
+	StartedAt  time.Time    `json:"started_at"`
+	PID        int          `json:"pid"`
+	BudgetUSD  float64      `json:"budget_usd"`
+	ExitCode   *int         `json:"exit_code,omitempty"`
+	Worktree   string       `json:"worktree"`
+	Log        string       `json:"log"`
+	Socket     string       `json:"socket,omitempty"`
+	Repo       string       `json:"repo,omitempty"`
+	Branch     string       `json:"branch,omitempty"`
+}
+
+func doListJSON() error {
+	paths, err := config.Resolve()
+	if err != nil {
+		return err
+	}
+	if err := paths.EnsureDirs(); err != nil {
+		return err
+	}
+	st := store.New(paths.StateFile)
+	tasks, err := st.ListTasks()
+	if err != nil {
+		return err
+	}
+	rows := make([]TaskRow, 0, len(tasks))
+	for _, t := range tasks {
+		var age int64
+		if !t.StartedAt.IsZero() {
+			age = int64(time.Since(t.StartedAt).Seconds())
+		}
+		rows = append(rows, TaskRow{
+			ID:         t.ID,
+			Agent:      t.Agent,
+			Status:     t.Status,
+			LiveStatus: liveStatus(t),
+			AgeSeconds: age,
+			StartedAt:  t.StartedAt,
+			PID:        t.PID,
+			BudgetUSD:  t.BudgetUSD,
+			ExitCode:   t.ExitCode,
+			Worktree:   t.Worktree,
+			Log:        t.Log,
+			Socket:     t.Socket,
+			Repo:       t.Repo,
+			Branch:     t.Branch,
+		})
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(rows)
 }
 
 func doList() error {

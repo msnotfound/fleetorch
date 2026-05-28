@@ -35,6 +35,7 @@ func main() {
 		newUpgradeCmd(),
 		newMonitorCmd(),
 		newPruneCmd(),
+		newDoctorCmd(),
 		newWorkerCmd(),
 	)
 

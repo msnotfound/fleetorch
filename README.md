@@ -238,6 +238,8 @@ fleetorch list   ◄── state.json
 | `watch <id> [--follow]` | Snapshot or tail logs. `--follow` is identical to `attach --follow`. |
 | `logs <id> [--full \| --err]` | Print the log file (last 200 lines by default). `--err` shows the worker-side error sidecar — useful when `spawn` "succeeded" but `list` shows nothing. |
 | `prune [--dry-run] [--older-than DUR] [--keep-worktrees \| --keep-sockets]` | Garbage-collect finished tasks. Removes state rows, worktrees, sockets, and orphan socket files. Use `--dry-run` to preview. |
+| `list [--json]` | Table of tracked tasks. `--json` emits a structured array — pipe to `jq` for scripting. |
+| `doctor [--json]` | Print fleetorch version, OS, paths, dependency status, agent inventory, state stats, and any obvious warnings. Paste into bug reports. |
 | `kill <id> [--purge]` | SIGTERM the task; `--purge` also removes its worktree. |
 | `agent list \| add \| remove \| edit` | Manage agent-type plugins. `edit <name>` opens the TOML in `$EDITOR`. |
 | `config show \| edit` | Print resolved paths or open the config file in `$EDITOR`. |

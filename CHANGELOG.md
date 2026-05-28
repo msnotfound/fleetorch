@@ -6,6 +6,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.4.4] — 2026-05-28
+
+### Added
+- **`fleetorch doctor`** — one-shot environment report. Prints fleetorch version, Go version + build target, OS / arch, resolved paths (including whether `$FLEETORCH_HOME` is set), AF_UNIX availability, TTY size, dependency status (git + codex + gemini + claude with discovered version strings), installed agent count, task / worktree / log statistics, and any obvious warnings. Built specifically for "paste into a bug report" — no judgment required, just `fleetorch doctor --json | gh issue ...`.
+- **`fleetorch list --json`** — emits a structured array (with `id`, `agent`, `status`, `live_status`, `age_seconds`, `pid`, `budget_usd`, `worktree`, `log`, `socket`, etc.) for scripting. The default table output is unchanged.
+- **`fleetorch doctor --json`** — same structured format for the doctor report.
+
 ## [0.4.3] — 2026-05-28
 
 ### Added
@@ -121,7 +128,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - GoReleaser pipeline → GitHub Releases on every tag push.
 - `curl|sh` installer at `scripts/install.sh`.
 
-[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.4.4...HEAD
+[0.4.4]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.4
 [0.4.3]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.3
 [0.4.2]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.2
 [0.4.1]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.1
