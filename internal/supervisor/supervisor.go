@@ -100,6 +100,15 @@ func (m *Manager) Spawn(ctx context.Context, spec types.SpawnSpec) (*types.Task,
 	debugf("Spawn %s: resolved %q → %q", spec.ID, argv[0], resolved)
 	argv[0] = resolved
 
+	// --- Windows-only: wrap .cmd / .bat shims via cmd.exe /C so the shim
+	// path is quoted properly. Direct CreateProcess of an npm-wrapper .cmd
+	// under a user profile with spaces (e.g. "C:\Users\MAYANK SAHU\...\codex.cmd")
+	// fails with "'C:\Users\MAYANK' is not recognized…". No-op on Unix.
+	if wrapped := maybeWrapShim(argv); &wrapped[0] != &argv[0] || len(wrapped) != len(argv) {
+		debugf("Spawn %s: wrapped shim via cmd.exe /C: %v", spec.ID, wrapped)
+		argv = wrapped
+	}
+
 	logF, err := os.OpenFile(spec.Log, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("open log: %w", err)
