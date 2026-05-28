@@ -290,7 +290,7 @@ Then `fleetorch agent list` will show it and `fleetorch spawn my-custom-agent ..
 
 ## Project status
 
-**Current version:** v0.4.5
+**Current version:** v0.4.7
 
 - **Linux / macOS** — fully supported and first-class. All features working as designed.
 - **Windows** — builds clean and ships x86_64 and arm64. HF-1 was fixed in v0.4.1: live long-running agents are now identified using Windows process APIs.
@@ -310,6 +310,7 @@ Then `fleetorch agent list` will show it and `fleetorch spawn my-custom-agent ..
 - **Seeded agent TOMLs** are written against the agy / codex / gemini / claude CLI flags as they existed at fleetorch's release. If any of those CLIs change flags upstream, edit the corresponding TOML (`fleetorch agent edit codex` etc.). PRs welcome to keep them current.
 - **Antivirus on Windows** may quarantine `fleetorch.exe` until you allow it — unsigned binaries are common to flag. Add an exclusion for `%LOCALAPPDATA%\Programs\fleetorch\` if needed.
 - **Windows older than 10 1803** doesn't support `AF_UNIX`. `attach` automatically falls back to `--follow` (read-only). The rest of fleetorch — spawn, list, kill, dash, logs — works unchanged.
+- **Windows npm-installed CLIs (`.cmd` shims) work even with spaces in your username** (since v0.4.7). fleetorch detects `.cmd` / `.bat` agent commands and invokes them via `cmd.exe /C "<path>"` so the shim path is properly quoted. Without this, `codex.cmd` / `claude.cmd` / `agy.cmd` under `C:\Users\<name with spaces>\AppData\Roaming\npm\` would fail to launch.
 
 ---
 

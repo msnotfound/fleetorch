@@ -6,8 +6,24 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.4.7] — 2026-05-28
+
+### Fixed
+- **Windows `.cmd` / `.bat` shims now launch correctly even when the user-profile path contains spaces.** npm-installed CLIs (`codex`, `gemini`, `claude`, `agy`) land at `%APPDATA%\npm\<name>.cmd` — a tiny batch wrapper. Direct invocation via `CreateProcess` built an unquoted command line like `cmd.exe /C C:\Users\MAYANK SAHU\…\codex.cmd …`, which `cmd.exe` parsed up to the first space and reported `'C:\Users\MAYANK' is not recognized as an internal or external command`. fleetorch now detects `.cmd` / `.bat` extensions in the resolved command and explicitly prepends `cmd.exe /C` so Go's arg-quoter wraps the shim path in quotes. Unix unchanged (`maybeWrapShim` is a no-op).
+- Diagnosed and reported by Codex in the v0.4.5 / v0.4.6 Windows findings runs. Closes the last open issue from those reports.
+
+### Internal
+- `internal/supervisor/shim_unix.go` + `shim_windows.go` — platform-split helper. `shim_test.go` cross-platform smoke tests.
+
+## [0.4.6] — 2026-05-28
+
 ### Added
-- Seeded `agy` agent type for the Google Antigravity CLI (`agy --print`) plus doctor dependency coverage.
+- **Sixth seeded agent type: `agy`** — Google Antigravity CLI (`agy --print` for one-shot tasks). Marked `streams_freely = false` because `agy --print` may buffer output.
+- `doctor` now probes `agy` on PATH and warns if the `agy` TOML is installed but the CLI isn't.
+- README "Agent types" table now lists 6 defaults; "Known quirks" section adds an `agy` bullet.
+
+### Contributed
+- PR #2 by Codex (running on Windows via antigravity). Includes a 146-line v0.4.5 Windows findings report confirming HF-1 fix, AF_UNIX bidirectional attach, prune flow, and three-concurrent-loop survival.
 
 ## [0.4.5] — 2026-05-28
 
@@ -141,7 +157,9 @@ Docs-only catch-up. No binary changes from v0.4.4.
 - GoReleaser pipeline → GitHub Releases on every tag push.
 - `curl|sh` installer at `scripts/install.sh`.
 
-[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.4.5...HEAD
+[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.4.7...HEAD
+[0.4.7]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.7
+[0.4.6]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.6
 [0.4.5]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.5
 [0.4.4]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.4
 [0.4.3]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.3
