@@ -22,9 +22,24 @@ Every agent-type TOML file supports the following fields:
 
 ## Default Agent Types
 
-Below are the configurations for the five default agent types included with `fleetorch`.
+Below are the configurations for the six default agent types included with `fleetorch`.
 
-### 1. Codex (`codex.toml`)
+### 1. Antigravity (`agy.toml`)
+One-shot tasks through Google's Antigravity CLI.
+
+```toml
+name = "agy"
+command = "agy"
+args = ["--print"]
+prompt_arg = "{prompt}"
+default_budget_usd = 0
+default_turns = 0
+sandbox = "worktree"
+streams_freely = false
+notes = "Google Antigravity CLI. Uses print mode for one-shot tasks; output may be buffered by agy."
+```
+
+### 2. Codex (`codex.toml`)
 Optimized for mechanical work and bulk changes using OpenAI's models.
 
 ```toml
@@ -39,7 +54,7 @@ streams_freely = true
 notes = "Free if user has OpenAI credits. Often forgets to commit at end — finalize manually."
 ```
 
-### 2. Gemini (`gemini.toml`)
+### 3. Gemini (`gemini.toml`)
 Best for long-document analysis and codebase-wide reading with a 1M token context.
 
 ```toml
@@ -54,7 +69,7 @@ streams_freely = true
 notes = "Free tier eligible. 1M context. Sandboxes to cwd — pre-stage files before spawning."
 ```
 
-### 3. Claude Haiku (`claude-haiku.toml`)
+### 4. Claude Haiku (`claude-haiku.toml`)
 Quick and inexpensive for small, self-contained tasks.
 
 ```toml
@@ -69,7 +84,7 @@ streams_freely = false
 notes = "Short structured tasks, ~$0.30-1 per module. Lower quality than sonnet on math/architecture."
 ```
 
-### 4. Claude Sonnet (`claude-sonnet.toml`)
+### 5. Claude Sonnet (`claude-sonnet.toml`)
 The balanced default for architectural work and complex refactors.
 
 ```toml
@@ -84,7 +99,7 @@ streams_freely = false
 notes = "Architectural work, cross-file refactors. ~$5-15 per module. Buffers stdout — trust filesystem activity."
 ```
 
-### 5. Claude Opus (`claude-opus.toml`)
+### 6. Claude Opus (`claude-opus.toml`)
 High-fidelity reasoning for novel or extremely difficult research problems.
 
 ```toml

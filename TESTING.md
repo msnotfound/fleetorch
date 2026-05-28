@@ -42,6 +42,7 @@ gh --version           # optional, for poking at release info
 If you intend to test real agents (Section 6), you'll also need at least one of:
 
 ```bash
+which agy              # Google Antigravity CLI
 which codex            # OpenAI Codex CLI
 which gemini           # Google Gemini CLI (gemini-cli, gemini_cli, etc.)
 which claude           # Anthropic Claude CLI (Claude Code or the `claude` binary)
@@ -55,7 +56,7 @@ If none of these are installed, **skip Section 6** and note it in the findings.
 fleetorch doctor
 ```
 
-This prints version + OS + arch + every path + dependency status (git, codex, gemini, claude with their versions if present) + agent inventory + state stats + warnings. **Paste the output verbatim at the top of your findings file** — it answers every "what environment was this?" question in one shot.
+This prints version + OS + arch + every path + dependency status (git, agy, codex, gemini, claude with their versions if present) + agent inventory + state stats + warnings. **Paste the output verbatim at the top of your findings file** — it answers every "what environment was this?" question in one shot.
 
 For machine-readable form: `fleetorch doctor --json`.
 
@@ -213,8 +214,8 @@ Get-ChildItem "$env:FLEETORCH_HOME\agents\"
 
 **Expected:**
 - `config show` prints eight paths, all rooted at the home you set
-- `agent list` shows 5 seeded agents: codex, gemini, claude-haiku, claude-sonnet, claude-opus
-- The agents dir contains 5 TOML files
+- `agent list` shows 6 seeded agents: agy, codex, gemini, claude-haiku, claude-sonnet, claude-opus
+- The agents dir contains 6 TOML files
 - A `socket_dir` is listed (added in v0.3)
 
 **Weak point (both platforms):** delete the agents dir and re-run `agent list` — does it re-seed correctly? What if you delete just one TOML? Does seeding leave a `.tmp` file behind on Windows if interrupted?
@@ -449,13 +450,24 @@ $FT kill pty-test
 
 ## 6. Real agents — the actual test
 
-**Skip this section if you don't have codex/claude/gemini installed and authenticated.**
+**Skip each subsection where you don't have that CLI installed and authenticated.**
 
 **Windows note:** Section 6 is enabled for v0.4.1 and newer. HF-1 in v0.4.0 incorrectly reported live long-running agents as `dead`; it is fixed by Windows-native process liveness checks.
 
 For each available CLI:
 
-### 6a. codex
+### 6a. agy
+
+```bash
+$FT spawn agy real-agy-1 "Print exactly FLEETORCH_AGY_OK and exit."
+sleep 30
+$FT list
+$FT logs real-agy-1 | tail -40
+```
+
+**Expected:** agy runs in print mode and eventually logs `FLEETORCH_AGY_OK`. If it exits 0 with no output, run `agy --print "Print exactly FLEETORCH_AGY_OK and exit."` directly and report whether the CLI itself is silent.
+
+### 6b. codex
 
 ```bash
 $FT spawn codex real-codex-1 "Print the SHA-256 of the string 'hello'. Output only the hex digest." --repo .
@@ -483,7 +495,7 @@ git -C ~/.local/share/fleetorch/worktrees/real-codex-1 -c commit.gpgsign=false c
 
 If you're asking codex itself to fill in this doc's findings template, the file it writes may end up uncommitted in its worktree — plan to retrieve it manually.
 
-### 6b. gemini
+### 6c. gemini
 
 ```bash
 $FT spawn gemini real-gemini-1 "Write a haiku about parallel agents." --repo .
@@ -493,7 +505,7 @@ $FT logs real-gemini-1 | tail -20
 
 **Weak point:** seeded `gemini.toml` uses `args = ["--yolo"]`. Confirm this flag still exists. Gemini's sandbox restricts file access to cwd — pre-stage any external context files inside the worktree before spawn.
 
-### 6c. claude
+### 6d. claude
 
 ```bash
 $FT spawn claude-haiku real-claude-1 "Write a one-line Go program that prints the current Unix timestamp." --repo .
@@ -503,9 +515,9 @@ $FT logs real-claude-1 | tail -40
 
 **Weak point:** claude with `-p` (`--print`) buffers stdout. The log may stay empty for minutes while the agent works. Check filesystem under the worktree (`ls /tmp/fo-home/worktrees/real-claude-1/`) to confirm activity. Verify the `--max-budget-usd` flag is respected.
 
-### 6d. Mix and match
+### 6e. Mix and match
 
-Spawn one of each (codex + gemini + claude-haiku) at once. Verify `dash` shows all three correctly.
+Spawn one of each available CLI (agy + codex + gemini + claude-haiku) at once. Verify `dash` shows them correctly.
 
 ---
 
@@ -532,7 +544,7 @@ Try to break it. Document each.
 
 These were called out by fleetorch's author as the highest-risk areas. Spend extra time here.
 
-1. **Seeded agent TOMLs may be stale.** The codex/gemini/claude flags were transcribed from an older bash harness. If a CLI has changed flags between when fleetorch shipped and when you're testing, spawn will fail in a way that looks like fleetorch's fault. **Check `codex --help`, `gemini --help`, `claude --help` against the TOMLs in `/tmp/fo-home/agents/` and report mismatches.**
+1. **Seeded agent TOMLs may be stale.** If a CLI has changed flags between when fleetorch shipped and when you're testing, spawn will fail in a way that looks like fleetorch's fault. **Check `agy --help`, `codex --help`, `gemini --help`, `claude --help` against the TOMLs in `/tmp/fo-home/agents/` and report mismatches.**
 
 2. **Windows-specific code never tested on Windows hardware.** If you're on Windows (Win10 1803+):
    - Confirm `fleetorch spawn shechord t "x"` writes a `.sock` file under `%LOCALAPPDATA%\fleetorch\sockets\`

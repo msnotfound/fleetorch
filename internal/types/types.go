@@ -19,29 +19,29 @@ const (
 // Task is a single spawned agent run.
 type Task struct {
 	ID        string    `json:"id"`
-	Agent     string    `json:"agent"`         // agent-type name
-	Worktree  string    `json:"worktree"`      // absolute path
-	Log       string    `json:"log"`           // absolute path to log file
+	Agent     string    `json:"agent"`            // agent-type name
+	Worktree  string    `json:"worktree"`         // absolute path
+	Log       string    `json:"log"`              // absolute path to log file
 	Socket    string    `json:"socket,omitempty"` // absolute path to control socket
 	PID       int       `json:"pid"`
 	StartedAt time.Time `json:"started_at"`
 	Status    Status    `json:"status"`
 	ExitCode  *int      `json:"exit_code,omitempty"` // nil if still running
 	BudgetUSD float64   `json:"budget_usd"`
-	Repo      string    `json:"repo,omitempty"`      // source repo, if any
-	Branch    string    `json:"branch,omitempty"`    // agent/<id> branch
+	Repo      string    `json:"repo,omitempty"`   // source repo, if any
+	Branch    string    `json:"branch,omitempty"` // agent/<id> branch
 }
 
 // AgentType is a plugin descriptor loaded from a TOML file.
 type AgentType struct {
 	Name             string   `toml:"name"`
-	Command          string   `toml:"command"`            // binary name on $PATH
-	Args             []string `toml:"args"`               // base args
-	PromptArg        string   `toml:"prompt_arg"`         // template "{prompt}" — replaced at spawn
+	Command          string   `toml:"command"`    // binary name on $PATH
+	Args             []string `toml:"args"`       // base args
+	PromptArg        string   `toml:"prompt_arg"` // template "{prompt}" — replaced at spawn
 	DefaultBudgetUSD float64  `toml:"default_budget_usd"`
 	DefaultTurns     int      `toml:"default_turns"`
-	Sandbox          string   `toml:"sandbox"`            // "worktree" | "none"
-	StreamsFreely    bool     `toml:"streams_freely"`     // false = stdout buffered (e.g. claude headless)
+	Sandbox          string   `toml:"sandbox"`        // "worktree" | "none"
+	StreamsFreely    bool     `toml:"streams_freely"` // false = stdout buffered (e.g. claude headless)
 	Notes            string   `toml:"notes,omitempty"`
 }
 
@@ -69,6 +69,7 @@ type Ledger map[string]int
 
 // Ledger keys — keep stable for jq/dashboard consumers.
 const (
+	LedgerAgy          = "agy"
 	LedgerCodex        = "codex"
 	LedgerGemini       = "gemini"
 	LedgerClaudeHaiku  = "claude_haiku"

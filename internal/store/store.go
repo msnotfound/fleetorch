@@ -181,6 +181,8 @@ func findTask(tasks []*types.Task, id string) (*types.Task, bool) {
 
 func ledgerKey(agent string) string {
 	switch agent {
+	case "agy":
+		return types.LedgerAgy
 	case "codex":
 		return types.LedgerCodex
 	case "gemini":

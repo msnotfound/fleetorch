@@ -178,10 +178,11 @@ Run `fleetorch config show` at any time to print the resolved paths for your mac
 
 ## Agent types
 
-fleetorch seeds 5 default agent types on first run. Each is a TOML file in your agents dir — edit any of them with `fleetorch agent edit <name>`.
+fleetorch seeds 6 default agent types on first run. Each is a TOML file in your agents dir — edit any of them with `fleetorch agent edit <name>`.
 
 | Agent | Wraps | Default budget | Default turns | When to use |
 |---|---|---|---|---|
+| `agy` | Google Antigravity CLI | — | — | Antigravity one-shot tasks via `agy --print`; useful when agy has the right local auth/session context. |
 | `codex` | OpenAI Codex CLI | — | — | Mechanical refactors, boilerplate, test scaffolding. Free if you have OpenAI credits. |
 | `gemini` | Google Gemini CLI | — | — | Long-doc / wide-codebase reads (1M context). Sandboxes to cwd — pre-stage files. |
 | `claude-haiku` | `claude -p --model haiku` | $0.50 | 50 | Short structured tasks, finishers. ~$0.30–1 per module. |
@@ -194,6 +195,7 @@ The cheap path is the default. Climb the ladder only when you need to.
 
 These aren't fleetorch bugs — they're behaviors of the underlying CLIs that fleetorch can't paper over. Worth knowing:
 
+- **Antigravity (`agy`) print mode may buffer output.** fleetorch uses `agy --print` for one-shot runs and marks it as not streaming freely.
 - **Codex routinely exits 0 without committing.** Files end up staged in the worktree but no commit is created. After `codex` tasks finish, check `git -C <worktree> status` and commit manually if needed. fleetorch's `agent list` flags this in the codex notes column.
 - **Gemini sandboxes to the current working directory.** It cannot read files outside the worktree fleetorch puts it in. If you want gemini to consume a file that lives elsewhere, copy it into the worktree before spawn.
 - **Claude headless (`claude -p`) buffers stdout.** A `claude-sonnet` agent can be working silently for 10+ minutes before any log lines appear. **Trust filesystem activity over log lines** — `ls <worktree>` and `git -C <worktree> status` will show progress even when the log looks frozen. fleetorch's `list` marks the task `idle` (not `dead`) in this case.
@@ -302,10 +304,10 @@ Then `fleetorch agent list` will show it and `fleetorch spawn my-custom-agent ..
 ### Known caveats
 
 - **Windows — fixes since v0.3.x:**
-  - `exec.LookPath` fix means shipped TOMLs (`powershell`, `codex`, etc.) now resolve via `%PATH%` as expected.
+  - `exec.LookPath` fix means shipped TOMLs (`powershell`, `agy`, `codex`, etc.) now resolve via `%PATH%` as expected.
   - v0.4.1 fixes HF-1: long-running agents were alive with a working socket, but Unix-style PID probing made `list` report `dead` and made `kill` skip them.
   - `fleetorch upgrade` from v0.3.0/v0.3.1 binaries on Windows still fails with "Access is denied" — these versions predate the rename-aside fix. Affected users must re-run the PowerShell installer.
-- **Seeded agent TOMLs** are written against the codex / gemini / claude CLI flags as they existed at fleetorch's release. If any of those CLIs change flags upstream, edit the corresponding TOML (`fleetorch agent edit codex` etc.). PRs welcome to keep them current.
+- **Seeded agent TOMLs** are written against the agy / codex / gemini / claude CLI flags as they existed at fleetorch's release. If any of those CLIs change flags upstream, edit the corresponding TOML (`fleetorch agent edit codex` etc.). PRs welcome to keep them current.
 - **Antivirus on Windows** may quarantine `fleetorch.exe` until you allow it — unsigned binaries are common to flag. Add an exclusion for `%LOCALAPPDATA%\Programs\fleetorch\` if needed.
 - **Windows older than 10 1803** doesn't support `AF_UNIX`. `attach` automatically falls back to `--follow` (read-only). The rest of fleetorch — spawn, list, kill, dash, logs — works unchanged.
 
@@ -322,7 +324,7 @@ Issues and PRs welcome. fleetorch grew out of a private bash harness called [`or
 **High-value areas for outside contribution right now:**
 
 - Real-world bug reports on Windows (especially around ConPTY, the AF_UNIX socket on Win11, antivirus interactions).
-- Stale-TOML PRs: if your codex / gemini / claude CLI version uses different flags than the seeded defaults, send a one-file patch to `internal/agents/builtin/`.
+- Stale-TOML PRs: if your agy / codex / gemini / claude CLI version uses different flags than the seeded defaults, send a one-file patch to `internal/agents/builtin/`.
 - A demo GIF for the README hero. The placeholder slot is reserved.
 - v0.4 agent marketplace design and implementation.
 

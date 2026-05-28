@@ -1,0 +1,9 @@
+name = "agy"
+command = "agy"
+args = ["--print"]
+prompt_arg = "{prompt}"
+default_budget_usd = 0
+default_turns = 0
+sandbox = "worktree"
+streams_freely = false
+notes = "Google Antigravity CLI. Uses print mode for one-shot tasks; output may be buffered by agy."
