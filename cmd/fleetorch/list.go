@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"text/tabwriter"
 	"time"
 
@@ -92,6 +93,12 @@ func age(t time.Time) string {
 }
 
 func shortPath(p string) string {
+	// On Windows we don't abbreviate. `~` isn't expanded by cmd.exe, and
+	// mixing `~/` with the rest of the Windows backslash path produces
+	// visually broken output like `~/AppData\Local\fleetorch\worktrees\...`.
+	if runtime.GOOS == "windows" {
+		return p
+	}
 	home, err := os.UserHomeDir()
 	if err == nil {
 		if rel, err := filepath.Rel(home, p); err == nil && len(rel) < len(p) {

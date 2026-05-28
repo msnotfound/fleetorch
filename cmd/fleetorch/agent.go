@@ -70,11 +70,7 @@ func doAgentEdit(name string) error {
 	if _, err := os.Stat(target); err != nil {
 		return fmt.Errorf("agent %q not installed (looked for %s)", name, target)
 	}
-	editor := os.Getenv("EDITOR")
-	if editor == "" {
-		editor = "vi"
-	}
-	c := exec.Command(editor, target)
+	c := exec.Command(resolveEditor(), target)
 	c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return c.Run()
 }
@@ -147,5 +143,10 @@ func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	return s[:n-1] + "…"
+	// Use ASCII "..." rather than U+2026 ellipsis so legacy Windows consoles
+	// (without UTF-8 codepage active) don't render the truncation as `?`.
+	if n <= 3 {
+		return s[:n]
+	}
+	return s[:n-3] + "..."
 }

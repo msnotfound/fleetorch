@@ -6,6 +6,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.4.2] — 2026-05-28
+
+### Fixed
+- **`$EDITOR` fallback now Windows-aware.** `fleetorch config edit` and `fleetorch agent edit` previously defaulted to `vi` on every platform, which fails on stock Windows where `vi` isn't on PATH. The new `resolveEditor()` helper checks `$VISUAL` first (POSIX convention), then `$EDITOR`, then defaults to `notepad` on Windows and `vi` elsewhere.
+- **`list` no longer mangles paths on Windows.** `shortPath()` was abbreviating `C:\Users\…` to `~/AppData\Local\fleetorch\…` — mixed `~` (not understood by `cmd.exe`) and backslashes. Windows now shows the literal path; Unix path abbreviation is unchanged.
+- **`agent list` truncation uses ASCII `...`** instead of the U+2026 Unicode ellipsis. Legacy Windows consoles without an active UTF-8 codepage rendered the ellipsis as `?`; Win11 Terminal handles it but the safer character costs nothing.
+
 ## [0.4.1] — 2026-05-27
 
 ### Fixed
@@ -102,7 +109,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - GoReleaser pipeline → GitHub Releases on every tag push.
 - `curl|sh` installer at `scripts/install.sh`.
 
-[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.2
+[0.4.1]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.1
 [0.4.0]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.0
 [0.3.3]: https://github.com/msnotfound/fleetorch/releases/tag/v0.3.3
 [0.3.2]: https://github.com/msnotfound/fleetorch/releases/tag/v0.3.2

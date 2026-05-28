@@ -51,11 +51,7 @@ func newConfigCmdReal() *cobra.Command {
 						return err
 					}
 				}
-				editor := os.Getenv("EDITOR")
-				if editor == "" {
-					editor = "vi"
-				}
-				c := exec.Command(editor, p.ConfigFile)
+				c := exec.Command(resolveEditor(), p.ConfigFile)
 				c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
 				return c.Run()
 			},
