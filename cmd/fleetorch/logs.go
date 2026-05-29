@@ -51,6 +51,11 @@ func doLogs(taskID string, full, errOnly bool) error {
 			return err
 		}
 		defer f.Close()
+		stat, err := f.Stat()
+		if err == nil && stat.Size() == 0 {
+			fmt.Println("(no worker errors recorded for this task)")
+			return nil
+		}
 		_, err = io.Copy(os.Stdout, f)
 		return err
 	}

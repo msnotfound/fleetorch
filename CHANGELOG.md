@@ -6,6 +6,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.4.8] — 2026-05-29
+
+### Fixed
+- `fleetorch logs <id> --err` now prints `(no worker errors recorded for this task)` when the worker error sidecar exists but is empty after a clean run.
+
 ## [0.4.7] — 2026-05-28
 
 ### Fixed
@@ -157,7 +162,8 @@ Docs-only catch-up. No binary changes from v0.4.4.
 - GoReleaser pipeline → GitHub Releases on every tag push.
 - `curl|sh` installer at `scripts/install.sh`.
 
-[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.4.7...HEAD
+[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.4.8...HEAD
+[0.4.8]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.8
 [0.4.7]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.7
 [0.4.6]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.6
 [0.4.5]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.5
