@@ -6,6 +6,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## v0.6.0
+
+### Added
+- feat(tour): interactive huh-based spawn form on the final tour slide.
+
 ## [0.5.0] — 2026-05-29
 
 ### Added

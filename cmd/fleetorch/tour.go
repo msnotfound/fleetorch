@@ -1,10 +1,16 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/msnotfound/fleetorch/internal/agents"
+	"github.com/msnotfound/fleetorch/internal/config"
 )
 
 // ---- color palette (hex) ---------------------------------------------------
@@ -89,7 +95,22 @@ var tourSlides = []slide{
 			"  Debug mode",
 			"    FLEETORCH_DEBUG=1 fleetorch <cmd>  — verbose internal logs.",
 			"",
-			"  You're all set. Press q or Esc to exit and start spawning!",
+			"  One more step: try spawning an agent from the tour.",
+		}, "\n"),
+	},
+	{
+		title: "Try it now: spawn an agent",
+		body: strings.Join([]string{
+			"",
+			"  The next screen opens a guided spawn form.",
+			"",
+			"  You'll choose an installed agent type, set a task ID,",
+			"  and write the prompt the agent should run.",
+			"",
+			"  Submit the form to spawn the agent immediately.",
+			"  Press Esc in the form to cancel without spawning.",
+			"",
+			"  Press →, space, or enter to open the form.",
 		}, "\n"),
 	},
 }
@@ -100,6 +121,7 @@ type tourModel struct {
 	current int
 	width   int
 	height  int
+	spawn   bool
 }
 
 func (m tourModel) Init() tea.Cmd { return nil }
@@ -112,10 +134,11 @@ func (m tourModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "right", "l", " ":
+		case "right", "l", " ", "enter":
 			if m.current < len(tourSlides)-1 {
 				m.current++
 			} else {
+				m.spawn = true
 				return m, tea.Quit
 			}
 		case "left", "h":
@@ -179,7 +202,7 @@ func (m tourModel) View() string {
 	if m.current < len(tourSlides)-1 {
 		footerParts = append(footerParts, lipgloss.NewStyle().Foreground(tourSuccess).Render("→/space next"))
 	} else {
-		footerParts = append(footerParts, lipgloss.NewStyle().Foreground(tourWarning).Render("→/space exit"))
+		footerParts = append(footerParts, lipgloss.NewStyle().Foreground(tourWarning).Render("→/space/enter spawn"))
 	}
 	footerParts = append(footerParts, lipgloss.NewStyle().Foreground(tourMuted).Render("q/esc quit"))
 	footer := strings.Join(footerParts, lipgloss.NewStyle().Foreground(tourMuted).Render("  ·  "))
@@ -200,6 +223,100 @@ func (m tourModel) View() string {
 
 func launchTour() error {
 	p := tea.NewProgram(tourModel{}, tea.WithAltScreen())
-	_, err := p.Run()
-	return err
+	finalModel, err := p.Run()
+	if err != nil {
+		return err
+	}
+	if m, ok := finalModel.(tourModel); ok && m.spawn {
+		return runTourSpawnForm()
+	}
+	return nil
+}
+
+func runTourSpawnForm() error {
+	paths, err := config.Resolve()
+	if err != nil {
+		return err
+	}
+	if err := paths.EnsureDirs(); err != nil {
+		return err
+	}
+	if err := agents.SeedDefaults(paths.AgentsDir); err != nil {
+		return err
+	}
+	reg, err := agents.Load(paths.AgentsDir)
+	if err != nil {
+		return err
+	}
+
+	agentList := reg.List()
+	if len(agentList) == 0 {
+		return fmt.Errorf("no agent types installed")
+	}
+
+	var (
+		agentName string
+		taskID    string
+		prompt    string
+	)
+
+	options := make([]huh.Option[string], 0, len(agentList))
+	for _, agent := range agentList {
+		label := agent.Name
+		if note := strings.TrimSpace(agent.Notes); note != "" {
+			label = fmt.Sprintf("%s - %s", agent.Name, truncate(note, 72))
+		}
+		options = append(options, huh.NewOption(label, agent.Name))
+	}
+
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Agent type").
+				Options(options...).
+				Value(&agentName),
+		),
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Task ID").
+				Description("Use a short identifier without spaces.").
+				Validate(validateTourTaskID).
+				Value(&taskID),
+		),
+		huh.NewGroup(
+			huh.NewText().
+				Title("Prompt").
+				Description("Describe the work this agent should do.").
+				Lines(6).
+				Validate(validateTourPrompt).
+				Value(&prompt),
+		),
+	).WithTheme(huh.ThemeDracula())
+
+	if err := form.Run(); err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			return nil
+		}
+		return err
+	}
+
+	return doSpawn(agentName, strings.TrimSpace(taskID), prompt, "", 0, 0, "", false)
+}
+
+func validateTourTaskID(value string) error {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fmt.Errorf("task ID cannot be empty")
+	}
+	if trimmed != value || strings.ContainsAny(value, " \t\r\n") {
+		return fmt.Errorf("task ID cannot contain spaces")
+	}
+	return nil
+}
+
+func validateTourPrompt(value string) error {
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("prompt cannot be empty")
+	}
+	return nil
 }
