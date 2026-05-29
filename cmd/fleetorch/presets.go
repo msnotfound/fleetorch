@@ -115,7 +115,7 @@ func newPresetRunCmd() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("%s/%s: %w", p.Name, agent.TaskIDSuffix, err)
 				}
-				if err := doSpawn(agent.Type, taskID, prompt, "", 0, 0, "", false); err != nil {
+				if err := doSpawn(agent.Type, taskID, prompt, "", 0, 0, "", false, false, ""); err != nil {
 					return fmt.Errorf("spawn %s: %w", taskID, err)
 				}
 			}

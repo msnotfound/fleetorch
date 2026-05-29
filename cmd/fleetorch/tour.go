@@ -300,7 +300,7 @@ func runTourSpawnForm() error {
 		return err
 	}
 
-	return doSpawn(agentName, strings.TrimSpace(taskID), prompt, "", 0, 0, "", false)
+	return doSpawn(agentName, strings.TrimSpace(taskID), prompt, "", 0, 0, "", false, false, "")
 }
 
 func validateTourTaskID(value string) error {
