@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 // Version is set at build time via -ldflags.
@@ -18,6 +19,12 @@ func main() {
 		Version:       Version,
 		SilenceUsage:  true,
 		SilenceErrors: false,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 && term.IsTerminal(int(os.Stdout.Fd())) {
+				return launchTour()
+			}
+			return cmd.Help()
+		},
 	}
 
 	root.AddCommand(
