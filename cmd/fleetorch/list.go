@@ -114,11 +114,11 @@ func doList() error {
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "TASK-ID\tAGENT\tSTATUS\tAGE\tBUDGET\tWORKTREE")
+	fmt.Fprintln(w, "TASK-ID\tAGENT\tSTATUS\tAGE\tBUDGET\tBAR\tWORKTREE")
 	for _, t := range tasks {
 		status := liveStatus(t)
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t$%.2f\t%s\n",
-			t.ID, t.Agent, status, age(t.StartedAt), t.BudgetUSD, shortPath(t.Worktree))
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t$%.2f\t%s\t%s\n",
+			t.ID, t.Agent, status, age(t.StartedAt), t.BudgetUSD, budgetBarText(t.BudgetUSD), shortPath(t.Worktree))
 	}
 	return w.Flush()
 }
@@ -158,6 +158,34 @@ func age(t time.Time) string {
 	default:
 		return fmt.Sprintf("%dd", int(d.Hours()/24))
 	}
+}
+
+// budgetBarText returns an ASCII budget bar safe for tabwriter alignment.
+// Uses [########] notation (8 chars wide) with reference max of $20.
+func budgetBarText(budgetUSD float64) string {
+	const (
+		barW   = 8
+		maxRef = 20.0
+	)
+	frac := budgetUSD / maxRef
+	if frac > 1 {
+		frac = 1
+	}
+	if frac < 0 {
+		frac = 0
+	}
+	filled := int(frac * barW)
+	bar := make([]byte, barW+2)
+	bar[0] = '['
+	for i := 0; i < barW; i++ {
+		if i < filled {
+			bar[i+1] = '#'
+		} else {
+			bar[i+1] = '-'
+		}
+	}
+	bar[barW+1] = ']'
+	return string(bar)
 }
 
 func shortPath(p string) string {

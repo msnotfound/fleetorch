@@ -290,7 +290,7 @@ Then `fleetorch agent list` will show it and `fleetorch spawn my-custom-agent ..
 
 ## Project status
 
-**Current version:** v0.4.8
+**Current version:** v0.5.0
 
 - **Linux / macOS** — fully supported and first-class. All features working as designed.
 - **Windows** — builds clean and ships x86_64 and arm64. HF-1 was fixed in v0.4.1: live long-running agents are now identified using Windows process APIs.

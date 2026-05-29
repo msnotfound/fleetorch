@@ -6,6 +6,20 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-05-29
+
+### Added
+- **Interactive intro tour on bare `fleetorch` invocation.** Running `fleetorch` with no arguments on a TTY now launches a 4-slide bubbletea tour (welcome → architecture → core commands → pro tips) instead of dumping help text. Non-TTY invocation (pipes, CI) still falls through to `cmd.Help()` so scripts and `fleetorch | grep` keep working. Navigate with arrows / `h`/`l` / space, exit with `q`/`esc`/`ctrl+c`.
+- **Dashboard uplift.** `fleetorch dash` is now a real multi-pane TUI:
+  - Hex color palette (`#7D53DE` accent, Dracula-inspired) replaces ad-hoc ANSI 256 integers.
+  - Rounded borders with focus highlighting — `Tab` cycles panes; active border glows in accent, inactive dims.
+  - Scrollable log viewport — `j`/`k` and `g`/`G` when the log pane has focus; position indicator (`[ TOP ]` / `[ N% ]` / `[ BOT ]`) pinned to the log frame.
+  - Budget progress bars (`█▌░` blocks) with green / yellow / red thresholds, in both the dash task list and the `fleetorch list` table.
+  - Sticky context-aware footer — two lines: pane name + task count on top, keymap that adapts to the focused pane on the bottom.
+
+### Credits
+- Both features were suggested by Gemini in a multi-turn TUI design review. Implementations by parallel claude-sonnet agents via [orcha](https://github.com/msnotfound/orcha).
+
 ## [0.4.8] — 2026-05-29
 
 ### Fixed
