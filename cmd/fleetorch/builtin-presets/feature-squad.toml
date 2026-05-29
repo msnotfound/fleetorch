@@ -1,0 +1,17 @@
+name = "feature-squad"
+description = "3 agents: codex builds, sonnet reviews, haiku writes docs"
+
+[[agent]]
+type = "codex"
+task_id_suffix = "build"
+prompt = "Build feature: {{.feature}}. Commit and push to feature/{{.feature}}."
+
+[[agent]]
+type = "claude-sonnet"
+task_id_suffix = "review"
+prompt = "Wait for branch feature/{{.feature}}, then review code in worktree. Comment on any issues."
+
+[[agent]]
+type = "claude-haiku"
+task_id_suffix = "docs"
+prompt = "Write README + CHANGELOG entry for feature: {{.feature}}."

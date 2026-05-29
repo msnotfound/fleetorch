@@ -36,6 +36,7 @@ func main() {
 		newDashCmdReal(),
 		newLogsCmdReal(),
 		newAgentCmdReal(),
+		newPresetCmdReal(),
 		newConfigCmdReal(),
 		newLedgerCmd(),
 		newMergeResolveCmd(),

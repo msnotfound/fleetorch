@@ -1,0 +1,22 @@
+name = "bugfix-swarm"
+description = "3 codex agents try independent fixes for the same bug; sonnet picks the best"
+
+[[agent]]
+type = "codex"
+task_id_suffix = "fix-a"
+prompt = "Investigate and fix bug: {{.bug}}. Try an independent minimal patch. Commit your result on branch bugfix/{{.bug}}-a."
+
+[[agent]]
+type = "codex"
+task_id_suffix = "fix-b"
+prompt = "Investigate and fix bug: {{.bug}}. Try an independent alternative patch. Commit your result on branch bugfix/{{.bug}}-b."
+
+[[agent]]
+type = "codex"
+task_id_suffix = "fix-c"
+prompt = "Investigate and fix bug: {{.bug}}. Try a third independent patch. Commit your result on branch bugfix/{{.bug}}-c."
+
+[[agent]]
+type = "claude-sonnet"
+task_id_suffix = "judge"
+prompt = "Compare branches bugfix/{{.bug}}-a, bugfix/{{.bug}}-b, and bugfix/{{.bug}}-c. Pick the best fix, explain why, and identify any remaining risks."

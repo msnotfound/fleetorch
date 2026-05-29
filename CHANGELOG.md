@@ -6,10 +6,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
-## v0.6.0
+## [0.6.0] — 2026-05-29
 
 ### Added
-- feat(tour): interactive huh-based spawn form on the final tour slide.
+- **Orphan recovery** — `list` and `prune --recover-orphans` scan the socket dir, cross-reference live PIDs, and restore lost task entries. If `state.json` is deleted or corrupted while workers are running, you no longer lose visibility into them.
+- **CPU-time liveness** — replaces the log-mtime "idle after 3min" heuristic with real CPU usage probes (`/proc/<pid>/stat` on Unix, `GetProcessTimes` on Windows). A long-running silent agent (e.g. Claude headless burning tokens without flushing stdout) now correctly shows as `active` instead of `idle`.
+- **Ledger-as-policy** — new `[policy]` config section enforces caps at spawn time: `max_concurrent_total`, `max_concurrent_per_agent`, `max_spend_usd_per_hour`, `max_spend_usd_per_day`. Bypass with `--force`. New `fleetorch policy show` reports caps + current usage.
+- **`--pipe-stdout-to <task-id>`** — IPC mesh. New spawn flag mirrors the task's PTY stdout into another running task's control socket, letting agents form pipelines.
+- **Interactive spawn form on the final tour slide** — bare `fleetorch` now ends with a huh-based form (agent type → task id → prompt) that calls `spawn` directly. No need to remember the CLI flags on first run.
+- **Team presets** — `fleetorch preset list` / `fleetorch preset run <name>` spawn coordinated agent topologies from named TOML blueprints. Three seeded: `feature-squad` (codex builds, sonnet reviews, haiku writes docs), `bugfix-swarm` (3 codex agents race on the same bug, sonnet picks the winner), `research-team` (gemini reads long docs, sonnet synthesizes, haiku summarizes). Custom presets live under `<DataDir>/presets/`.
 
 ## [0.5.0] — 2026-05-29
 
@@ -22,18 +27,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   - Budget progress bars (`█▌░` blocks) with green / yellow / red thresholds, in both the dash task list and the `fleetorch list` table.
   - Sticky context-aware footer — two lines: pane name + task count on top, keymap that adapts to the focused pane on the bottom.
 
-### Credits
-- Both features were suggested by Gemini in a multi-turn TUI design review. Implemented by parallel Claude Sonnet agents.
-
 ## [0.4.8] — 2026-05-29
 
 ### Fixed
 - `fleetorch agent add` now installs custom agent TOMLs as `<name>.toml` using the parsed `name` field, so `agent remove <name>` and `agent edit <name>` can find agents added from differently named source files.
 - `$VISUAL` / `$EDITOR` values with flags or paths containing spaces now launch correctly for `fleetorch agent edit` and `fleetorch config edit`. Handles unquoted Windows paths ending in `.exe`/`.cmd`/`.bat`/`.com` plus standard shell-style quoted arguments. A shared `editorCommand()` helper deduplicates the two call sites.
 - `fleetorch logs <id> --err` now prints `(no worker errors recorded for this task)` when the worker error sidecar exists but is empty after a clean run — previously this silently printed nothing, leaving the user unsure whether the task succeeded or the command failed.
-
-### Credits
-- All three fixes diagnosed by Gemini reviewing the v0.4.7 codebase. Implemented by parallel Codex agents.
 
 ## [0.4.7] — 2026-05-28
 
