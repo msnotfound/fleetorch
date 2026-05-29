@@ -14,23 +14,26 @@ import (
 
 	"github.com/msnotfound/fleetorch/internal/agents"
 	"github.com/msnotfound/fleetorch/internal/config"
+	"github.com/msnotfound/fleetorch/internal/store"
 	"github.com/msnotfound/fleetorch/internal/types"
 )
 
 func newSpawnCmdReal() *cobra.Command {
 	var (
-		repo    string
-		budget  float64
-		turns   int
-		model   string
-		fg      bool
+		repo         string
+		budget       float64
+		turns        int
+		model        string
+		fg           bool
+		force        bool
+		pipeStdoutTo string
 	)
 	cmd := &cobra.Command{
 		Use:   "spawn <agent-type> <task-id> <prompt>",
 		Short: "Spawn an agent in an isolated worktree",
 		Args:  cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return doSpawn(args[0], args[1], args[2], repo, budget, turns, model, fg)
+			return doSpawn(args[0], args[1], args[2], repo, budget, turns, model, fg, force, pipeStdoutTo)
 		},
 	}
 	cmd.Flags().StringVar(&repo, "repo", "", "Path to git repo to worktree from (empty = scratch dir)")
@@ -38,10 +41,12 @@ func newSpawnCmdReal() *cobra.Command {
 	cmd.Flags().IntVar(&turns, "turns", 0, "Max turns (overrides agent default; claude-* only)")
 	cmd.Flags().StringVar(&model, "model", "", "Override model")
 	cmd.Flags().BoolVar(&fg, "foreground", false, "Run in the foreground, attached to this terminal (no detach)")
+	cmd.Flags().BoolVar(&force, "force", false, "Bypass policy caps (emergency use)")
+	cmd.Flags().StringVar(&pipeStdoutTo, "pipe-stdout-to", "", "Pipe this task's PTY stdout to another task's control socket (task-id)")
 	return cmd
 }
 
-func doSpawn(agentName, taskID, prompt, repo string, budget float64, turns int, model string, foreground bool) error {
+func doSpawn(agentName, taskID, prompt, repo string, budget float64, turns int, model string, foreground, force bool, pipeStdoutTo string) error {
 	paths, err := config.Resolve()
 	if err != nil {
 		return err
@@ -60,6 +65,16 @@ func doSpawn(agentName, taskID, prompt, repo string, budget float64, turns int, 
 	agent, err := reg.Get(agentName)
 	if err != nil {
 		return err
+	}
+
+	if !force {
+		cfg, err := paths.LoadConfig()
+		if err != nil {
+			return err
+		}
+		if err := enforcePolicy(cfg.Policy, paths, agentName); err != nil {
+			return err
+		}
 	}
 
 	taskID, err = uniqueTaskID(paths, taskID)
@@ -88,15 +103,16 @@ func doSpawn(agentName, taskID, prompt, repo string, budget float64, turns int, 
 	sock := filepath.Join(paths.SocketDir, taskID+".sock")
 
 	spec := types.SpawnSpec{
-		ID:        taskID,
-		Agent:     *applyOverrides(agent, budget, turns, model),
-		Prompt:    resolvePrompt(prompt),
-		Worktree:  worktree,
-		Log:       log,
-		Socket:    sock,
-		BudgetUSD: pickBudget(agent, budget),
-		Turns:     pickTurns(agent, turns),
-		Model:     model,
+		ID:           taskID,
+		Agent:        *applyOverrides(agent, budget, turns, model),
+		Prompt:       resolvePrompt(prompt),
+		Worktree:     worktree,
+		Log:          log,
+		Socket:       sock,
+		BudgetUSD:    pickBudget(agent, budget),
+		Turns:        pickTurns(agent, turns),
+		Model:        model,
+		PipeStdoutTo: pipeStdoutTo,
 	}
 
 	if foreground {
@@ -168,6 +184,58 @@ func pickTurns(a *types.AgentType, override int) int {
 		return override
 	}
 	return a.DefaultTurns
+}
+
+// enforcePolicy checks current usage against caps and returns an error if any
+// cap would be exceeded by the next spawn.
+func enforcePolicy(pol config.Policy, paths config.Paths, agentName string) error {
+	st, err := store.New(paths.StateFile).Load()
+	if err != nil {
+		return fmt.Errorf("policy check: load state: %w", err)
+	}
+
+	running := 0
+	runningForAgent := 0
+	spendLastHour := 0.0
+	spendLastDay := 0.0
+	now := time.Now()
+
+	for _, t := range st.Tasks {
+		isRunning := t.Status == types.StatusRunning ||
+			t.Status == types.StatusActive ||
+			t.Status == types.StatusIdle
+		if isRunning {
+			running++
+			if t.Agent == agentName {
+				runningForAgent++
+			}
+		}
+		age := now.Sub(t.StartedAt)
+		if age <= time.Hour {
+			spendLastHour += t.BudgetUSD
+		}
+		if age <= 24*time.Hour {
+			spendLastDay += t.BudgetUSD
+		}
+	}
+
+	if pol.MaxConcurrentTotal > 0 && running >= pol.MaxConcurrentTotal {
+		return fmt.Errorf("policy: concurrent cap reached (%d/%d running); use --force to override",
+			running, pol.MaxConcurrentTotal)
+	}
+	if pol.MaxConcurrentPerAgent > 0 && runningForAgent >= pol.MaxConcurrentPerAgent {
+		return fmt.Errorf("policy: per-agent cap reached for %q (%d/%d running); use --force to override",
+			agentName, runningForAgent, pol.MaxConcurrentPerAgent)
+	}
+	if pol.MaxSpendUSDPerHour > 0 && spendLastHour >= pol.MaxSpendUSDPerHour {
+		return fmt.Errorf("policy: hourly spend cap reached ($%.2f/$%.2f); use --force to override",
+			spendLastHour, pol.MaxSpendUSDPerHour)
+	}
+	if pol.MaxSpendUSDPerDay > 0 && spendLastDay >= pol.MaxSpendUSDPerDay {
+		return fmt.Errorf("policy: daily spend cap reached ($%.2f/$%.2f); use --force to override",
+			spendLastDay, pol.MaxSpendUSDPerDay)
+	}
+	return nil
 }
 
 // forkWorker writes the SpawnSpec to a temp file, re-execs fleetorch in

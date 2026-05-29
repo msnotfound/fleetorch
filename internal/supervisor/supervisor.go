@@ -13,6 +13,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -191,6 +192,12 @@ func (m *Manager) Spawn(ctx context.Context, spec types.SpawnSpec) (*types.Task,
 		go e.serveSocket(spec.Socket)
 	}
 
+	if spec.PipeStdoutTo != "" {
+		sockPath := filepath.Join(m.paths.SocketDir, spec.PipeStdoutTo+".sock")
+		debugf("Spawn %s: dialing pipe-stdout-to socket %s", spec.ID, sockPath)
+		go e.dialPipe(sockPath)
+	}
+
 	debugf("Spawn %s: Spawn complete, returning task", spec.ID)
 	return cloneTask(task), nil
 }
@@ -315,6 +322,51 @@ func (e *entry) wait() {
 func cloneTask(t *types.Task) *types.Task {
 	c := *t
 	return &c
+}
+
+// dialPipe connects to a peer task's control socket and adds a self-removing
+// framed writer to this task's tee chain. If the socket is unavailable the
+// function logs a warning and returns — the spawned task continues unaffected.
+// If the socket dies mid-stream the pipeWriter detaches itself silently.
+func (e *entry) dialPipe(sockPath string) {
+	conn, err := net.Dial("unix", sockPath)
+	if err != nil {
+		log.Printf("fleetorch: --pipe-stdout-to %s: connect failed: %v (pipe disabled)", sockPath, err)
+		return
+	}
+	pw := &pipeWriter{conn: conn, fw: newFrameWriter(conn), tee: e.out}
+	e.out.attach(pw)
+	<-e.done
+	e.out.detach(pw)
+	conn.Close()
+}
+
+// pipeWriter is a framed io.Writer that removes itself from the tee chain when
+// a write error occurs (i.e. the target socket closed).
+type pipeWriter struct {
+	mu   sync.Mutex
+	conn net.Conn
+	fw   *frameWriter
+	tee  *teeWriter
+	dead bool
+}
+
+func (p *pipeWriter) Write(b []byte) (int, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.dead {
+		return len(b), nil
+	}
+	if _, err := p.fw.Write(b); err != nil {
+		p.dead = true
+		// Detach asynchronously to avoid a deadlock: teeWriter.Write holds
+		// its RLock while calling us; tee.detach needs the write lock.
+		go func() {
+			p.tee.detach(p)
+			p.conn.Close()
+		}()
+	}
+	return len(b), nil
 }
 
 func renderArgs(spec types.SpawnSpec) []string {
