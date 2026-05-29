@@ -18,7 +18,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   - Sticky context-aware footer — two lines: pane name + task count on top, keymap that adapts to the focused pane on the bottom.
 
 ### Credits
-- Both features were suggested by Gemini in a multi-turn TUI design review. Implementations by parallel claude-sonnet agents via [orcha](https://github.com/msnotfound/orcha).
+- Both features were suggested by Gemini in a multi-turn TUI design review. Implemented by parallel Claude Sonnet agents.
 
 ## [0.4.8] — 2026-05-29
 
@@ -28,7 +28,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - `fleetorch logs <id> --err` now prints `(no worker errors recorded for this task)` when the worker error sidecar exists but is empty after a clean run — previously this silently printed nothing, leaving the user unsure whether the task succeeded or the command failed.
 
 ### Credits
-- All three fixes diagnosed by Gemini reviewing the v0.4.7 codebase. Implementations by parallel codex agents via [orcha](https://github.com/msnotfound/orcha).
+- All three fixes diagnosed by Gemini reviewing the v0.4.7 codebase. Implemented by parallel Codex agents.
 
 ## [0.4.7] — 2026-05-28
 
