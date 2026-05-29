@@ -18,12 +18,13 @@ import (
 
 func newPruneCmd() *cobra.Command {
 	var (
-		dryRun         bool
-		olderThan      time.Duration
-		keepWorktrees  bool
-		keepSockets    bool
-		keepErrors     bool
-		includeRunning bool
+		dryRun          bool
+		olderThan       time.Duration
+		keepWorktrees   bool
+		keepSockets     bool
+		keepErrors      bool
+		includeRunning  bool
+		recoverOrphans  bool
 	)
 	cmd := &cobra.Command{
 		Use:   "prune",
@@ -42,7 +43,7 @@ those on disk. Use --dry-run to preview without deleting anything.
 This is the main 'free up disk' lever — pnpm worktrees, npm installs,
 and large clones can quickly add gigabytes per agent run.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return doPrune(dryRun, olderThan, keepWorktrees, keepSockets, keepErrors, includeRunning)
+			return doPrune(dryRun, olderThan, keepWorktrees, keepSockets, keepErrors, includeRunning, recoverOrphans)
 		},
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Preview without deleting anything")
@@ -51,6 +52,7 @@ and large clones can quickly add gigabytes per agent run.`,
 	cmd.Flags().BoolVar(&keepSockets, "keep-sockets", false, "Don't delete control socket files")
 	cmd.Flags().BoolVar(&keepErrors, "keep-errors", false, "Don't delete worker error sidecar files")
 	cmd.Flags().BoolVar(&includeRunning, "include-running", false, "Also prune tasks marked running/active (recorded PIDs assumed stale)")
+	cmd.Flags().BoolVar(&recoverOrphans, "recover-orphans", false, "Scan SocketDir for live sockets absent from state.json and add them back first")
 	return cmd
 }
 
@@ -61,11 +63,21 @@ type pruneCandidate struct {
 	actions []string
 }
 
-func doPrune(dryRun bool, olderThan time.Duration, keepWorktrees, keepSockets, keepErrors, includeRunning bool) error {
+func doPrune(dryRun bool, olderThan time.Duration, keepWorktrees, keepSockets, keepErrors, includeRunning, recoverOrphans bool) error {
 	paths, err := config.Resolve()
 	if err != nil {
 		return err
 	}
+
+	if recoverOrphans {
+		recovered, recErr := store.RecoverOrphans(paths)
+		if recErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: orphan recovery failed: %v\n", recErr)
+		} else if len(recovered) > 0 {
+			fmt.Printf("orphans recovered: %d\n", len(recovered))
+		}
+	}
+
 	st := store.New(paths.StateFile)
 	tasks, err := st.ListTasks()
 	if err != nil {
