@@ -7,6 +7,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ## [Unreleased]
 
 - feat(dash): floating kill-confirm modal, Ctrl-K command palette with fuzzy finder, f key to fold reasoning blocks in log viewer
+- feat(dash): live pulse dot (●◐○◑, 500ms) next to each task in dash + list; token-burn sparklines (▁–█, 12-cell) alongside budget bar; d-key split-pane git diff viewer with scroll, color, and 2s cache
 
 ## [0.6.0] — 2026-05-29
 

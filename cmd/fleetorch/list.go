@@ -136,11 +136,11 @@ func doList() error {
 	_ = os.MkdirAll(cputimeDir, 0o755)
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "TASK-ID\tAGENT\tSTATUS\tAGE\tBUDGET\tBAR\tWORKTREE")
+	fmt.Fprintln(w, "\tTASK-ID\tAGENT\tSTATUS\tAGE\tBUDGET\tBAR\tWORKTREE")
 	for _, t := range tasks {
 		status := liveStatus(t, cputimeDir)
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t$%.2f\t%s\t%s\n",
-			t.ID, t.Agent, status, age(t.StartedAt), t.BudgetUSD, budgetBarText(t.BudgetUSD), shortPath(t.Worktree))
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t$%.2f\t%s\t%s\n",
+			staticPulseDot(status), t.ID, t.Agent, status, age(t.StartedAt), t.BudgetUSD, budgetBarText(t.BudgetUSD), shortPath(t.Worktree))
 	}
 	return w.Flush()
 }
@@ -301,6 +301,19 @@ func budgetBarText(budgetUSD float64) string {
 	}
 	bar[barW+1] = ']'
 	return string(bar)
+}
+
+// staticPulseDot returns a non-animated unicode dot indicating task liveness.
+// Plain ASCII-width chars are used to avoid tabwriter byte-vs-visual-width skew.
+func staticPulseDot(status types.Status) string {
+	switch status {
+	case types.StatusActive, types.StatusRunning:
+		return "●"
+	case types.StatusIdle:
+		return "◑"
+	default:
+		return "○"
+	}
 }
 
 func shortPath(p string) string {
