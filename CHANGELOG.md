@@ -6,6 +6,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+- feat(dash): floating kill-confirm modal, Ctrl-K command palette with fuzzy finder, f key to fold reasoning blocks in log viewer
+
 ## [0.6.0] — 2026-05-29
 
 ### Added

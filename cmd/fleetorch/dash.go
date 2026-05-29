@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
@@ -73,12 +75,30 @@ var (
 	styleUnfocusBorder = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(colorAccentDim)
 
 	styleFooter = lipgloss.NewStyle().Background(colorBG).Foreground(colorMuted)
+
+	styleKillModal = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(colorDanger).
+			Padding(1, 3)
+	styleKillTitle = lipgloss.NewStyle().Bold(true).Foreground(colorDanger)
+
+	stylePaletteModal = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(colorAccent).
+				Padding(0, 1).
+				Width(52)
 )
 
 type tickMsg time.Time
 
 func tickCmd() tea.Cmd {
 	return tea.Tick(refreshInterval, func(t time.Time) tea.Msg { return tickMsg(t) })
+}
+
+// paletteMatch holds a task index and its fuzzy score for the command palette.
+type paletteMatch struct {
+	taskIdx int
+	score   int
 }
 
 type dashModel struct {
@@ -89,6 +109,7 @@ type dashModel struct {
 
 	logLines     []string
 	logScrollOff int // 99999 = stay at bottom (clamped on render)
+	logFoldMode  bool
 
 	activePane int // paneTaskList or paneLog
 
@@ -96,12 +117,23 @@ type dashModel struct {
 	height int
 
 	err          error
-	confirmKill  bool
 	flashMessage string
+
+	// kill confirmation modal
+	killModalOpen bool
+
+	// command palette
+	paletteOpen    bool
+	paletteInput   textinput.Model
+	paletteMatches []paletteMatch
+	paletteSelIdx  int
 }
 
 func newDashModel(st *store.Store) dashModel {
-	return dashModel{store: st, logScrollOff: 99999}
+	ti := textinput.New()
+	ti.Placeholder = "type task ID…"
+	ti.CharLimit = 40
+	return dashModel{store: st, logScrollOff: 99999, paletteInput: ti}
 }
 
 func (m dashModel) Init() tea.Cmd {
@@ -127,9 +159,72 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// Kill modal has highest priority — intercepts all keys.
+		if m.killModalOpen {
+			switch msg.String() {
+			case "y", "Y", "enter":
+				m.killModalOpen = false
+				if len(m.tasks) > 0 {
+					id := m.tasks[m.selected].ID
+					m.flashMessage = "killed " + id
+					if err := doKill(id, false); err != nil {
+						m.flashMessage = "kill failed: " + err.Error()
+					}
+					return m, m.refresh
+				}
+			default:
+				m.killModalOpen = false
+			}
+			return m, nil
+		}
+
+		// Command palette — second priority.
+		if m.paletteOpen {
+			switch msg.String() {
+			case "esc":
+				m.paletteOpen = false
+				m.paletteInput.SetValue("")
+				m.paletteSelIdx = 0
+			case "enter":
+				if len(m.paletteMatches) > 0 {
+					m.selected = m.paletteMatches[m.paletteSelIdx].taskIdx
+					m.logLines = nil
+					m.logScrollOff = 99999
+				}
+				m.paletteOpen = false
+				m.paletteInput.SetValue("")
+				m.paletteSelIdx = 0
+				return m, m.refresh
+			case "up":
+				if m.paletteSelIdx > 0 {
+					m.paletteSelIdx--
+				}
+			case "down":
+				if m.paletteSelIdx < len(m.paletteMatches)-1 {
+					m.paletteSelIdx++
+				}
+			default:
+				var cmd tea.Cmd
+				m.paletteInput, cmd = m.paletteInput.Update(msg)
+				m.paletteSelIdx = 0
+				m.updatePaletteMatches()
+				return m, cmd
+			}
+			return m, nil
+		}
+
+		// Normal key handling.
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
+
+		case "ctrl+k", "/":
+			m.paletteOpen = true
+			m.paletteInput.Focus()
+			m.paletteInput.SetValue("")
+			m.paletteSelIdx = 0
+			m.updatePaletteMatches()
+			return m, nil
 
 		case "tab":
 			m.activePane = 1 - m.activePane
@@ -190,27 +285,16 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.refresh
 
 		case "K":
-			if len(m.tasks) == 0 {
-				return m, nil
+			if len(m.tasks) > 0 {
+				m.killModalOpen = true
 			}
-			id := m.tasks[m.selected].ID
-			if !m.confirmKill {
-				m.confirmKill = true
-				m.flashMessage = "press K again to kill " + id + ", any other key cancels"
-				return m, nil
-			}
-			m.confirmKill = false
-			m.flashMessage = "killed " + id
-			if err := doKill(id, false); err != nil {
-				m.flashMessage = "kill failed: " + err.Error()
-			}
-			return m, m.refresh
+			return m, nil
 
-		default:
-			if m.confirmKill {
-				m.confirmKill = false
-				m.flashMessage = ""
+		case "f":
+			if m.activePane == paneLog {
+				m.logFoldMode = !m.logFoldMode
 			}
+			return m, nil
 		}
 
 	case tickMsg:
@@ -232,6 +316,10 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.logLines = nil
 			}
+		}
+		// Keep palette matches in sync after task list refresh.
+		if m.paletteOpen {
+			m.updatePaletteMatches()
 		}
 		m.err = nil
 		return m, nil
@@ -280,22 +368,218 @@ func (m dashModel) View() string {
 	if m.activePane == paneLog {
 		paneName = "log"
 	}
-	infoLine := styleTitle.Render(paneName) + styleMuted.Render(fmt.Sprintf("  %d task(s)", len(m.tasks)))
+
+	foldIndicator := ""
+	if m.activePane == paneLog {
+		if m.logFoldMode {
+			foldIndicator = "  " + styleTitle.Render("fold: ON")
+		} else {
+			foldIndicator = "  " + styleMuted.Render("fold: OFF")
+		}
+	}
+	infoLine := styleTitle.Render(paneName) +
+		styleMuted.Render(fmt.Sprintf("  %d task(s)", len(m.tasks))) +
+		foldIndicator
 
 	var keymapStr string
 	if m.activePane == paneTaskList {
-		keymapStr = "tab: switch pane  •  j/k: select  •  K: kill  •  r: refresh  •  q: quit"
+		keymapStr = "tab: switch  •  j/k: select  •  K: kill  •  ctrl+k: find  •  r: refresh  •  q: quit"
 	} else {
-		keymapStr = "tab: switch pane  •  j/k: scroll  •  g/G: top/bottom  •  q: quit"
+		keymapStr = "tab: switch  •  j/k: scroll  •  f: fold  •  g/G: top/bottom  •  q: quit"
 	}
 	keymapLine := styleMuted.Render(keymapStr)
 	if m.flashMessage != "" {
-		keymapLine = styleWarn.Render(m.flashMessage) + styleMuted.Render("  "+keymapStr)
+		keymapLine = styleWarn.Render(m.flashMessage) + styleMuted.Render("  •  "+keymapStr)
 	}
 
 	footer := styleFooter.Width(m.width).Render(infoLine + "\n" + keymapLine)
 
+	// Kill confirmation modal — full-screen overlay on dark background.
+	if m.killModalOpen {
+		modal := m.renderKillModal()
+		return lipgloss.Place(m.width, m.height,
+			lipgloss.Center, lipgloss.Center,
+			modal,
+			lipgloss.WithWhitespaceBackground(colorBG),
+		)
+	}
+
+	// Command palette — full-screen overlay anchored to top-center.
+	if m.paletteOpen {
+		modal := m.renderPalette()
+		return lipgloss.Place(m.width, m.height,
+			lipgloss.Center, lipgloss.Top,
+			modal,
+			lipgloss.WithWhitespaceBackground(colorBG),
+		)
+	}
+
 	return lipgloss.JoinVertical(lipgloss.Left, header, body, footer)
+}
+
+// renderKillModal renders the floating kill-confirmation modal box.
+func (m dashModel) renderKillModal() string {
+	if len(m.tasks) == 0 {
+		return styleKillModal.Render(styleKillTitle.Render("no tasks selected"))
+	}
+	t := m.tasks[m.selected]
+	title := styleKillTitle.Render("Kill task " + t.ID + "?")
+	info := styleMuted.Render(fmt.Sprintf(
+		"agent: %-12s  age: %-8s  burned: $%.2f",
+		t.Agent, age(t.StartedAt), t.BudgetUSD,
+	))
+	prompt := lipgloss.NewStyle().Bold(true).Foreground(colorFG).Render("[y/N]")
+	content := lipgloss.JoinVertical(lipgloss.Center, title, info, "", prompt)
+	return styleKillModal.Render(content)
+}
+
+// renderPalette renders the command palette modal box.
+func (m dashModel) renderPalette() string {
+	var b strings.Builder
+	b.WriteString(m.paletteInput.View())
+	b.WriteString("\n")
+	if len(m.paletteMatches) == 0 {
+		b.WriteString(styleMuted.Render("  no matches"))
+	} else {
+		for i, pm := range m.paletteMatches {
+			t := m.tasks[pm.taskIdx]
+			live := liveStatus(t)
+			statusStr := styleForStatus(live).Render(string(live))
+			line := truncate(t.ID, 18) + "  " +
+				styleMuted.Render(truncate(t.Agent, 12)) + "  " +
+				statusStr
+			if i == m.paletteSelIdx {
+				b.WriteString(styleSel.Width(46).Render("▸ " + line))
+			} else {
+				b.WriteString("  " + line)
+			}
+			if i < len(m.paletteMatches)-1 {
+				b.WriteString("\n")
+			}
+		}
+	}
+	return stylePaletteModal.Render(b.String())
+}
+
+// fuzzyScore returns a subsequence-match score > 0 if pattern matches s.
+// Higher scores indicate better matches (consecutive runs, prefix matches).
+func fuzzyScore(pattern, s string) int {
+	pattern = strings.ToLower(pattern)
+	s = strings.ToLower(s)
+	if pattern == "" {
+		return 1
+	}
+	pi := 0
+	score := 0
+	consecutive := 0
+	for si := 0; si < len(s) && pi < len(pattern); si++ {
+		if s[si] == pattern[pi] {
+			pi++
+			consecutive++
+			score += consecutive * 2
+			if si == 0 {
+				score += 5 // bonus for matching at start
+			}
+		} else {
+			consecutive = 0
+		}
+	}
+	if pi < len(pattern) {
+		return 0 // pattern was not fully matched
+	}
+	return score
+}
+
+// updatePaletteMatches refreshes the top-5 fuzzy matches for the current input.
+func (m *dashModel) updatePaletteMatches() {
+	query := m.paletteInput.Value()
+	type scored struct {
+		idx   int
+		score int
+	}
+	var matches []scored
+	for i, t := range m.tasks {
+		var s int
+		if query == "" {
+			s = 1 // show all tasks when query is empty
+		} else {
+			s = fuzzyScore(query, t.ID)
+		}
+		if s > 0 {
+			matches = append(matches, scored{i, s})
+		}
+	}
+	sort.Slice(matches, func(a, b int) bool {
+		return matches[a].score > matches[b].score
+	})
+	const maxMatches = 5
+	if len(matches) > maxMatches {
+		matches = matches[:maxMatches]
+	}
+	m.paletteMatches = make([]paletteMatch, len(matches))
+	for i, sm := range matches {
+		m.paletteMatches[i] = paletteMatch{taskIdx: sm.idx, score: sm.score}
+	}
+}
+
+// foldLogLines replaces reasoning/tool-call noise with compact markers.
+func foldLogLines(lines []string) []string {
+	out := make([]string, 0, len(lines))
+	inThinking := false
+	hiddenCount := 0
+
+	flush := func() {
+		if hiddenCount > 0 {
+			marker := lipgloss.NewStyle().Foreground(colorMuted).
+				Render(fmt.Sprintf("[+ %d hidden reasoning lines]", hiddenCount))
+			out = append(out, marker)
+			hiddenCount = 0
+		}
+	}
+
+	for _, line := range lines {
+		if inThinking {
+			hiddenCount++
+			if strings.Contains(line, "</thinking>") {
+				inThinking = false
+				flush()
+			}
+			continue
+		}
+
+		if strings.Contains(line, "<thinking>") {
+			hiddenCount++
+			if strings.Contains(line, "</thinking>") {
+				// single-line block
+				flush()
+			} else {
+				inThinking = true
+			}
+			continue
+		}
+
+		if strings.HasPrefix(line, "tool_use:") || strings.HasPrefix(line, "mcp_tool:") {
+			hiddenCount++
+			flush()
+			continue
+		}
+
+		if strings.HasPrefix(line, "{") &&
+			(strings.Contains(line, `"tool_use_id"`) || strings.Contains(line, `"input"`)) {
+			hiddenCount++
+			flush()
+			continue
+		}
+
+		out = append(out, line)
+	}
+
+	// Flush any unclosed thinking block.
+	if hiddenCount > 0 {
+		flush()
+	}
+
+	return out
 }
 
 func (m dashModel) renderTaskList(w, h int) string {
@@ -342,6 +626,10 @@ func (m dashModel) renderLog(w, h int) string {
 	}
 
 	lines := m.logLines
+	if m.logFoldMode {
+		lines = foldLogLines(lines)
+	}
+
 	if len(lines) == 0 {
 		return header + "\n\n" + styleMuted.Render("(no log output yet)")
 	}
