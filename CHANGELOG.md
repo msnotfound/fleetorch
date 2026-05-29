@@ -6,6 +6,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.6.0]
+
+### Added
+- feat(preset): team presets — spawn coordinated agent topologies from named TOML blueprints. Three seeded: feature-squad, bugfix-swarm, research-team.
+
 ## [0.5.0] — 2026-05-29
 
 ### Added

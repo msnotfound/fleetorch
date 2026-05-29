@@ -1,0 +1,17 @@
+name = "research-team"
+description = "gemini reads long docs, sonnet synthesizes findings, haiku writes the summary"
+
+[[agent]]
+type = "gemini"
+task_id_suffix = "read"
+prompt = "Read the long documents and collect relevant evidence for: {{.topic}}. Save concise notes with source paths and key excerpts."
+
+[[agent]]
+type = "claude-sonnet"
+task_id_suffix = "synthesize"
+prompt = "Synthesize the research notes for: {{.topic}}. Produce a structured analysis with trade-offs, uncertainties, and recommended next steps."
+
+[[agent]]
+type = "claude-haiku"
+task_id_suffix = "summary"
+prompt = "Write an executive summary for: {{.topic}} using the synthesis. Keep it brief and action-oriented."
