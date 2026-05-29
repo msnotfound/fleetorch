@@ -6,6 +6,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.4.9] — 2026-05-29
+
+### Added
+- **feat(tui): dashboard uplift** — hex palette (`#7D53DE` accent, Dracula-inspired), rounded borders with focus highlighting (Tab cycles panes, active border glows in accent), manual scrollable log viewport (j/k + g/G when log pane focused, scroll position indicator `[ TOP ]` / `[ BOT ]` / `[ N% ]`), budget progress bars (█▌░ blocks, green/yellow/red thresholds) in both the TUI task list and `fleetorch list` output, and a two-line sticky context-aware footer with pane-name + task count on the top line and a keymap that adapts to the focused pane.
+
 ## [0.4.7] — 2026-05-28
 
 ### Fixed

@@ -39,6 +39,40 @@ func newDashCmdReal() *cobra.Command {
 const (
 	refreshInterval = 1 * time.Second
 	logTailBytes    = 8 << 10 // 8 KiB
+
+	paneTaskList = 0
+	paneLog      = 1
+)
+
+// ---- hex color palette ---------------------------------------------------
+
+var (
+	colorAccent    = lipgloss.Color("#7D53DE")
+	colorAccentDim = lipgloss.Color("#3C3C3C")
+	colorSuccess   = lipgloss.Color("#2AF598")
+	colorWarning   = lipgloss.Color("#FF9F43")
+	colorDanger    = lipgloss.Color("#FF4757")
+	colorMuted     = lipgloss.Color("#6272A4")
+	colorFG        = lipgloss.Color("#F8F8F2")
+	colorBG        = lipgloss.Color("#282A36")
+)
+
+// ---- styles --------------------------------------------------------------
+
+var (
+	styleTitle  = lipgloss.NewStyle().Bold(true).Foreground(colorAccent)
+	styleSel    = lipgloss.NewStyle().Bold(true).Foreground(colorFG).Background(lipgloss.Color("#44475A"))
+	styleMuted  = lipgloss.NewStyle().Foreground(colorMuted)
+	styleActive = lipgloss.NewStyle().Foreground(colorSuccess)
+	styleIdle   = lipgloss.NewStyle().Foreground(colorWarning)
+	styleDone   = lipgloss.NewStyle().Foreground(lipgloss.Color("#8BE9FD"))
+	styleFailed = lipgloss.NewStyle().Foreground(colorDanger)
+	styleWarn   = lipgloss.NewStyle().Foreground(colorWarning)
+
+	styleFocusBorder   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(colorAccent)
+	styleUnfocusBorder = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(colorAccentDim)
+
+	styleFooter = lipgloss.NewStyle().Background(colorBG).Foreground(colorMuted)
 )
 
 type tickMsg time.Time
@@ -53,18 +87,21 @@ type dashModel struct {
 	tasks    []*types.Task
 	selected int
 
-	logTail string
+	logLines     []string
+	logScrollOff int // 99999 = stay at bottom (clamped on render)
+
+	activePane int // paneTaskList or paneLog
 
 	width  int
 	height int
 
 	err          error
-	confirmKill  bool   // K pressed once; second press confirms
-	flashMessage string // transient footer note
+	confirmKill  bool
+	flashMessage string
 }
 
 func newDashModel(st *store.Store) dashModel {
-	return dashModel{store: st}
+	return dashModel{store: st, logScrollOff: 99999}
 }
 
 func (m dashModel) Init() tea.Cmd {
@@ -93,30 +130,65 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
+
+		case "tab":
+			m.activePane = 1 - m.activePane
+			return m, nil
+
 		case "j", "down":
-			if m.selected < len(m.tasks)-1 {
-				m.selected++
-				m.logTail = ""
+			if m.activePane == paneTaskList {
+				if m.selected < len(m.tasks)-1 {
+					m.selected++
+					m.logLines = nil
+					m.logScrollOff = 99999
+					return m, m.refresh
+				}
+			} else {
+				m.logScrollOff++
 			}
 			return m, nil
+
 		case "k", "up":
-			if m.selected > 0 {
-				m.selected--
-				m.logTail = ""
+			if m.activePane == paneTaskList {
+				if m.selected > 0 {
+					m.selected--
+					m.logLines = nil
+					m.logScrollOff = 99999
+					return m, m.refresh
+				}
+			} else {
+				if m.logScrollOff > 0 {
+					m.logScrollOff--
+				}
 			}
 			return m, nil
+
 		case "g":
-			m.selected = 0
-			m.logTail = ""
+			if m.activePane == paneTaskList {
+				m.selected = 0
+				m.logLines = nil
+				m.logScrollOff = 99999
+				return m, m.refresh
+			}
+			m.logScrollOff = 0
 			return m, nil
+
 		case "G":
-			if len(m.tasks) > 0 {
-				m.selected = len(m.tasks) - 1
-				m.logTail = ""
+			if m.activePane == paneTaskList {
+				if len(m.tasks) > 0 {
+					m.selected = len(m.tasks) - 1
+					m.logLines = nil
+					m.logScrollOff = 99999
+					return m, m.refresh
+				}
+			} else {
+				m.logScrollOff = 99999
 			}
 			return m, nil
+
 		case "r":
 			return m, m.refresh
+
 		case "K":
 			if len(m.tasks) == 0 {
 				return m, nil
@@ -133,8 +205,8 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.flashMessage = "kill failed: " + err.Error()
 			}
 			return m, m.refresh
+
 		default:
-			// Any other key cancels a pending kill confirmation.
 			if m.confirmKill {
 				m.confirmKill = false
 				m.flashMessage = ""
@@ -153,7 +225,13 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selected = 0
 		}
 		if len(m.tasks) > 0 {
-			m.logTail = readLogTail(m.tasks[m.selected].Log, logTailBytes)
+			raw := readLogTail(m.tasks[m.selected].Log, logTailBytes)
+			trimmed := strings.TrimRight(raw, "\n")
+			if trimmed != "" {
+				m.logLines = strings.Split(trimmed, "\n")
+			} else {
+				m.logLines = nil
+			}
 		}
 		m.err = nil
 		return m, nil
@@ -165,69 +243,87 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// ---- styles --------------------------------------------------------------
-
-var (
-	styleTitle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("63"))
-	styleSelected = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("220")).Background(lipgloss.Color("236"))
-	styleDim      = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	styleActive   = lipgloss.NewStyle().Foreground(lipgloss.Color("82"))
-	styleIdle     = lipgloss.NewStyle().Foreground(lipgloss.Color("214"))
-	styleDone     = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
-	styleFailed   = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	styleBorder   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("240"))
-)
-
 func (m dashModel) View() string {
 	if m.width == 0 {
 		return "loading…"
 	}
 
+	// Layout geometry: header(1) + border-top(1) + content + border-bot(1) + footer(2)
 	leftW := m.width * 2 / 5
-	rightW := m.width - leftW - 4
-	innerH := m.height - 4 // borders + bottom bar
+	rightW := m.width - leftW - 4 // 4 = two borders × 2 cols each
+	innerH := m.height - 5
+	if innerH < 3 {
+		innerH = 3
+	}
 
 	left := m.renderTaskList(leftW, innerH)
 	right := m.renderLog(rightW, innerH)
 
-	header := styleTitle.Render("fleetorch") + styleDim.Render("  "+time.Now().Format("15:04:05"))
-	bottomKeys := "j/k navigate  g/G top/bottom  K kill  r refresh  q quit"
-	bottom := styleDim.Render(bottomKeys)
-	if m.flashMessage != "" {
-		bottom = styleIdle.Render(m.flashMessage) + "  " + styleDim.Render(bottomKeys)
+	// Focus-aware borders
+	leftBorder := styleUnfocusBorder.Width(leftW).Height(innerH)
+	rightBorder := styleUnfocusBorder.Width(rightW).Height(innerH)
+	if m.activePane == paneTaskList {
+		leftBorder = styleFocusBorder.Width(leftW).Height(innerH)
+	} else {
+		rightBorder = styleFocusBorder.Width(rightW).Height(innerH)
 	}
 
 	body := lipgloss.JoinHorizontal(lipgloss.Top,
-		styleBorder.Width(leftW).Height(innerH).Render(left),
-		styleBorder.Width(rightW).Height(innerH).Render(right),
+		leftBorder.Render(left),
+		rightBorder.Render(right),
 	)
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, body, bottom)
+	header := styleTitle.Render("fleetorch") + styleMuted.Render("  "+time.Now().Format("15:04:05"))
+
+	// Two-line sticky footer
+	paneName := "tasks"
+	if m.activePane == paneLog {
+		paneName = "log"
+	}
+	infoLine := styleTitle.Render(paneName) + styleMuted.Render(fmt.Sprintf("  %d task(s)", len(m.tasks)))
+
+	var keymapStr string
+	if m.activePane == paneTaskList {
+		keymapStr = "tab: switch pane  •  j/k: select  •  K: kill  •  r: refresh  •  q: quit"
+	} else {
+		keymapStr = "tab: switch pane  •  j/k: scroll  •  g/G: top/bottom  •  q: quit"
+	}
+	keymapLine := styleMuted.Render(keymapStr)
+	if m.flashMessage != "" {
+		keymapLine = styleWarn.Render(m.flashMessage) + styleMuted.Render("  "+keymapStr)
+	}
+
+	footer := styleFooter.Width(m.width).Render(infoLine + "\n" + keymapLine)
+
+	return lipgloss.JoinVertical(lipgloss.Left, header, body, footer)
 }
 
 func (m dashModel) renderTaskList(w, h int) string {
 	if len(m.tasks) == 0 {
-		return styleDim.Render("no tasks") + "\n\n" + styleDim.Render("spawn one: fleetorch spawn <agent> <id> \"<prompt>\"")
+		return styleMuted.Render("no tasks") + "\n\n" +
+			styleMuted.Render("spawn one: fleetorch spawn <agent> <id> \"<prompt>\"")
 	}
 
 	var b strings.Builder
 	for i, t := range m.tasks {
 		live := liveStatus(t)
-		statusStr := styleForStatus(live).Render(string(live))
-		line := fmt.Sprintf("%-12s  %-13s  %s  %s  $%.2f",
-			truncate(t.ID, 12), truncate(t.Agent, 13), statusStr, age(t.StartedAt), t.BudgetUSD)
+		statusStr := styleForStatus(live).Render(fmt.Sprintf("%-8s", string(live)))
+		bar := budgetBar(t.BudgetUSD)
+		line := truncate(t.ID, 12) + "  " +
+			truncate(t.Agent, 10) + "  " +
+			statusStr + "  " +
+			fmt.Sprintf("%-6s", age(t.StartedAt)) + "  " +
+			bar
 		if i == m.selected {
-			line = styleSelected.Render("▸ " + line)
+			b.WriteString(styleSel.Width(w).Render("▸ " + line))
 		} else {
-			line = "  " + line
+			b.WriteString("  " + line)
 		}
-		b.WriteString(line)
 		b.WriteString("\n")
 	}
 	if m.err != nil {
 		b.WriteString("\n" + styleFailed.Render("error: "+m.err.Error()))
 	}
-	_ = w
 	_ = h
 	return b.String()
 }
@@ -237,15 +333,58 @@ func (m dashModel) renderLog(w, h int) string {
 		return ""
 	}
 	t := m.tasks[m.selected]
-	header := styleTitle.Render(t.ID) + styleDim.Render(" — "+t.Log)
-	body := m.logTail
-	if body == "" {
-		body = styleDim.Render("(no log output yet)")
-	} else {
-		body = tailLinesString(body, h-2)
+	header := styleTitle.Render(t.ID) + styleMuted.Render(" — "+t.Log)
+
+	// h lines available: 1 header + (h-2) content + 1 scroll indicator
+	visibleH := h - 2
+	if visibleH < 1 {
+		visibleH = 1
 	}
-	_ = w
-	return header + "\n\n" + body
+
+	lines := m.logLines
+	if len(lines) == 0 {
+		return header + "\n\n" + styleMuted.Render("(no log output yet)")
+	}
+
+	// Clamp scroll offset
+	maxOff := len(lines) - visibleH
+	if maxOff < 0 {
+		maxOff = 0
+	}
+	off := m.logScrollOff
+	if off > maxOff {
+		off = maxOff
+	}
+
+	// Slice visible window
+	end := off + visibleH
+	if end > len(lines) {
+		end = len(lines)
+	}
+	visible := lines[off:end]
+
+	// Pad to exactly visibleH lines so scroll indicator stays at bottom
+	padded := make([]string, visibleH)
+	copy(padded, visible)
+	body := strings.Join(padded, "\n")
+
+	// Scroll position indicator
+	var posText string
+	switch {
+	case len(lines) <= visibleH:
+		posText = "[ ALL ]"
+	case off == 0:
+		posText = "[ TOP ]"
+	case off >= maxOff:
+		posText = "[ BOT ]"
+	default:
+		pct := 100 * off / maxOff
+		posText = fmt.Sprintf("[ %d%% ]", pct)
+	}
+
+	scrollLine := lipgloss.NewStyle().Width(w).Align(lipgloss.Right).Foreground(colorMuted).Render(posText)
+
+	return header + "\n" + body + "\n" + scrollLine
 }
 
 func styleForStatus(s types.Status) lipgloss.Style {
@@ -259,8 +398,46 @@ func styleForStatus(s types.Status) lipgloss.Style {
 	case types.StatusFailed, types.StatusDead:
 		return styleFailed
 	default:
-		return styleDim
+		return styleMuted
 	}
+}
+
+// budgetBar renders a coloured unicode block bar + dollar amount.
+// Bar width is 8 chars; reference max is $20 for colour thresholds.
+func budgetBar(budgetUSD float64) string {
+	const (
+		barW   = 8
+		maxRef = 20.0
+	)
+	frac := budgetUSD / maxRef
+	if frac > 1 {
+		frac = 1
+	}
+	if frac < 0 {
+		frac = 0
+	}
+	filled := int(frac * barW)
+
+	var sb strings.Builder
+	for i := 0; i < barW; i++ {
+		if i < filled {
+			sb.WriteRune('█')
+		} else {
+			sb.WriteRune('░')
+		}
+	}
+	fmt.Fprintf(&sb, " $%.2f", budgetUSD)
+
+	var color lipgloss.Color
+	switch {
+	case frac < 0.5:
+		color = colorSuccess
+	case frac < 0.75:
+		color = colorWarning
+	default:
+		color = colorDanger
+	}
+	return lipgloss.NewStyle().Foreground(color).Render(sb.String())
 }
 
 // readLogTail returns the last n bytes of path (or less if smaller).
@@ -290,17 +467,6 @@ func readLogTail(path string, n int) string {
 		}
 	}
 	return string(buf)
-}
-
-func tailLinesString(s string, n int) string {
-	if n <= 0 {
-		return s
-	}
-	lines := strings.Split(s, "\n")
-	if len(lines) <= n {
-		return s
-	}
-	return strings.Join(lines[len(lines)-n:], "\n")
 }
 
 func doDashTUI() error {
