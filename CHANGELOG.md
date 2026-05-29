@@ -11,6 +11,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 ### Fixed
 - `fleetorch agent add` now installs custom agent TOMLs as `<name>.toml` using the parsed `name` field, so `agent remove <name>` and `agent edit <name>` can find agents added from differently named source files.
 - `$VISUAL` / `$EDITOR` values with flags or paths containing spaces now launch correctly for `fleetorch agent edit` and `fleetorch config edit`. Handles unquoted Windows paths ending in `.exe`/`.cmd`/`.bat`/`.com` plus standard shell-style quoted arguments. A shared `editorCommand()` helper deduplicates the two call sites.
+- `fleetorch logs <id> --err` now prints `(no worker errors recorded for this task)` when the worker error sidecar exists but is empty after a clean run — previously this silently printed nothing, leaving the user unsure whether the task succeeded or the command failed.
+
+### Credits
+- All three fixes diagnosed by Gemini reviewing the v0.4.7 codebase. Implementations by parallel codex agents via [orcha](https://github.com/msnotfound/orcha).
 
 ## [0.4.7] — 2026-05-28
 
@@ -163,7 +167,8 @@ Docs-only catch-up. No binary changes from v0.4.4.
 - GoReleaser pipeline → GitHub Releases on every tag push.
 - `curl|sh` installer at `scripts/install.sh`.
 
-[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.4.7...HEAD
+[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.4.8...HEAD
+[0.4.8]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.8
 [0.4.7]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.7
 [0.4.6]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.6
 [0.4.5]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.5
