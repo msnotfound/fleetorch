@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 
 	"github.com/msnotfound/fleetorch/internal/config"
 	"github.com/msnotfound/fleetorch/internal/store"
+	"github.com/msnotfound/fleetorch/internal/supervisor"
 	"github.com/msnotfound/fleetorch/internal/types"
 )
 
@@ -65,18 +68,22 @@ func doListJSON() error {
 	if err != nil {
 		return err
 	}
+
+	cputimeDir := filepath.Join(paths.DataDir, "cputime")
+	_ = os.MkdirAll(cputimeDir, 0o755)
+
 	rows := make([]TaskRow, 0, len(tasks))
 	for _, t := range tasks {
-		var age int64
+		var ageVal int64
 		if !t.StartedAt.IsZero() {
-			age = int64(time.Since(t.StartedAt).Seconds())
+			ageVal = int64(time.Since(t.StartedAt).Seconds())
 		}
 		rows = append(rows, TaskRow{
 			ID:         t.ID,
 			Agent:      t.Agent,
 			Status:     t.Status,
-			LiveStatus: liveStatus(t),
-			AgeSeconds: age,
+			LiveStatus: liveStatus(t, cputimeDir),
+			AgeSeconds: ageVal,
 			StartedAt:  t.StartedAt,
 			PID:        t.PID,
 			BudgetUSD:  t.BudgetUSD,
@@ -108,30 +115,83 @@ func doList() error {
 		return err
 	}
 
+	// Recover orphaned workers whose state.json rows were lost but whose
+	// sockets are still live on disk.
+	if hasOrphanSockets(paths, tasks) {
+		if recovered, recErr := store.RecoverOrphans(paths); recErr == nil && len(recovered) > 0 {
+			fmt.Fprintf(os.Stderr, "recovered %d orphaned task(s)\n", len(recovered))
+			tasks, err = st.ListTasks()
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	if len(tasks) == 0 {
 		fmt.Println("no tasks. spawn one: fleetorch spawn <agent> <id> \"<prompt>\"")
 		return nil
 	}
 
+	cputimeDir := filepath.Join(paths.DataDir, "cputime")
+	_ = os.MkdirAll(cputimeDir, 0o755)
+
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, "TASK-ID\tAGENT\tSTATUS\tAGE\tBUDGET\tBAR\tWORKTREE")
 	for _, t := range tasks {
-		status := liveStatus(t)
+		status := liveStatus(t, cputimeDir)
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t$%.2f\t%s\t%s\n",
 			t.ID, t.Agent, status, age(t.StartedAt), t.BudgetUSD, budgetBarText(t.BudgetUSD), shortPath(t.Worktree))
 	}
 	return w.Flush()
 }
 
+// hasOrphanSockets returns true if any .sock file in SocketDir lacks a
+// matching entry in the provided task list.
+func hasOrphanSockets(paths config.Paths, tasks []*types.Task) bool {
+	known := make(map[string]bool, len(tasks))
+	for _, t := range tasks {
+		if t.Socket != "" {
+			known[filepath.Base(t.Socket)] = true
+		}
+	}
+	entries, err := os.ReadDir(paths.SocketDir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sock") && !known[e.Name()] {
+			return true
+		}
+	}
+	return false
+}
+
 // liveStatus reports a derived status accounting for the on-disk record being
 // stale (the process may have died without the worker updating state.json).
-func liveStatus(t *types.Task) types.Status {
+// Pass cputimeDir (DataDir/cputime) to enable CPU-time liveness; omit or pass
+// "" to fall back to log-mtime only (used by dash.go, monitor.go).
+func liveStatus(t *types.Task, cputimeDirs ...string) types.Status {
+	cputimeDir := ""
+	if len(cputimeDirs) > 0 {
+		cputimeDir = cputimeDirs[0]
+	}
+	_ = cputimeDir // used below; suppress unused-variable lint for the branch
 	if t.Status == types.StatusDone || t.Status == types.StatusFailed {
 		return t.Status
 	}
 	if t.PID > 0 && !pidAlive(t.PID) {
 		return types.StatusDead
 	}
+
+	// Try CPU-time liveness: if cumulative CPU grew since the last sample the
+	// process is active regardless of stdout silence.
+	if t.PID > 0 {
+		if s, ok := cpuLiveness(t, cputimeDir); ok {
+			return s
+		}
+	}
+
+	// Fall back to log-mtime check (existing behaviour on platforms without /proc).
 	if t.Log != "" {
 		if info, err := os.Stat(t.Log); err == nil {
 			if time.Since(info.ModTime()) > 3*time.Minute {
@@ -141,6 +201,61 @@ func liveStatus(t *types.Task) types.Status {
 		}
 	}
 	return t.Status
+}
+
+// cpuLiveness probes whether the process consumed new CPU since the last list
+// call. Returns (status, true) when a determination can be made; (_, false)
+// to signal the caller should fall back to the log-mtime check.
+func cpuLiveness(t *types.Task, cacheDir string) (types.Status, bool) {
+	current, err := supervisor.ProcessCPUTime(t.PID)
+	if err != nil {
+		return "", false // /proc not available (macOS, BSD, exotic platform)
+	}
+
+	cacheFile := filepath.Join(cacheDir, t.ID)
+	prev, prevTime, readErr := readCPUSample(cacheFile)
+
+	// Always persist the latest sample so the next call has a baseline.
+	_ = writeCPUSample(cacheFile, current)
+
+	if readErr != nil {
+		return "", false // no previous sample; can't compare yet
+	}
+	if time.Since(prevTime) < 5*time.Second {
+		return "", false // too soon; delta unreliable
+	}
+
+	if current > prev {
+		return types.StatusActive, true
+	}
+	return types.StatusIdle, true
+}
+
+// readCPUSample reads a cached CPU sample written by writeCPUSample.
+func readCPUSample(path string) (cpu time.Duration, sampledAt time.Time, err error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, time.Time{}, err
+	}
+	parts := strings.SplitN(strings.TrimSpace(string(data)), "\n", 2)
+	if len(parts) != 2 {
+		return 0, time.Time{}, fmt.Errorf("malformed cpu sample")
+	}
+	ns, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return 0, time.Time{}, err
+	}
+	ts, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return 0, time.Time{}, err
+	}
+	return time.Duration(ns), time.Unix(ts, 0), nil
+}
+
+// writeCPUSample persists a CPU sample for the next list call to compare against.
+func writeCPUSample(path string, cpu time.Duration) error {
+	content := fmt.Sprintf("%d\n%d\n", int64(cpu), time.Now().Unix())
+	return os.WriteFile(path, []byte(content), 0o644)
 }
 
 func age(t time.Time) string {
