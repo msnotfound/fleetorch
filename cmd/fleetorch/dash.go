@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -40,11 +42,19 @@ func newDashCmdReal() *cobra.Command {
 
 const (
 	refreshInterval = 1 * time.Second
+	pulseInterval   = 500 * time.Millisecond
 	logTailBytes    = 8 << 10 // 8 KiB
 
 	paneTaskList = 0
 	paneLog      = 1
+	paneDiff     = 2
 )
+
+// sparkRunes is the 8-level sparkline character set (low → high).
+var sparkRunes = []rune("▁▂▃▄▅▆▇█")
+
+// pulseChars cycles for the live-indicator dot animation.
+var pulseChars = []rune{'●', '◐', '○', '◑'}
 
 // ---- hex color palette ---------------------------------------------------
 
@@ -86,14 +96,22 @@ var (
 				Border(lipgloss.RoundedBorder()).
 				BorderForeground(colorAccent).
 				Padding(0, 1).
-				Width(52)
+				Width(56)
 )
 
 type tickMsg time.Time
+type pulseTickMsg time.Time
 
 func tickCmd() tea.Cmd {
 	return tea.Tick(refreshInterval, func(t time.Time) tea.Msg { return tickMsg(t) })
 }
+
+func pulseTickCmd() tea.Cmd {
+	return tea.Tick(pulseInterval, func(t time.Time) tea.Msg { return pulseTickMsg(t) })
+}
+
+// diffMsg carries the result of a background git diff shell-out.
+type diffMsg struct{ content string }
 
 // paletteMatch holds a task index and its fuzzy score for the command palette.
 type paletteMatch struct {
@@ -102,16 +120,18 @@ type paletteMatch struct {
 }
 
 type dashModel struct {
-	store *store.Store
+	store      *store.Store
+	cputimeDir string
 
-	tasks    []*types.Task
-	selected int
+	tasks        []*types.Task
+	selected     int
+	liveStatuses map[string]types.Status // precomputed in Update, not View
 
 	logLines     []string
 	logScrollOff int // 99999 = stay at bottom (clamped on render)
 	logFoldMode  bool
 
-	activePane int // paneTaskList or paneLog
+	activePane int // paneTaskList, paneLog, or paneDiff
 
 	width  int
 	height int
@@ -127,17 +147,38 @@ type dashModel struct {
 	paletteInput   textinput.Model
 	paletteMatches []paletteMatch
 	paletteSelIdx  int
+
+	// live pulse animation (500ms tick)
+	pulseFrame int
+
+	// burn-rate sparkline history (keyed by task ID, up to 12 samples)
+	burnHistory  map[string][]float64
+	logSizeCache map[string]int64
+
+	// split-pane diff viewer
+	diffVisible   bool
+	diffContent   string
+	diffLastFetch time.Time
+	diffScrollOff int
 }
 
-func newDashModel(st *store.Store) dashModel {
+func newDashModel(st *store.Store, cputimeDir string) dashModel {
 	ti := textinput.New()
 	ti.Placeholder = "type task ID…"
 	ti.CharLimit = 40
-	return dashModel{store: st, logScrollOff: 99999, paletteInput: ti}
+	return dashModel{
+		store:        st,
+		cputimeDir:   cputimeDir,
+		logScrollOff: 99999,
+		paletteInput: ti,
+		liveStatuses: make(map[string]types.Status),
+		burnHistory:  make(map[string][]float64),
+		logSizeCache: make(map[string]int64),
+	}
 }
 
 func (m dashModel) Init() tea.Cmd {
-	return tea.Batch(m.refresh, tickCmd())
+	return tea.Batch(m.refresh, tickCmd(), pulseTickCmd())
 }
 
 func (m dashModel) refresh() tea.Msg {
@@ -150,6 +191,17 @@ func (m dashModel) refresh() tea.Msg {
 
 type tasksMsg []*types.Task
 type errMsg struct{ err error }
+
+// fetchDiffCmd returns a Cmd that shells out git diff for the focused task's worktree.
+func (m dashModel) fetchDiffCmd() tea.Cmd {
+	if len(m.tasks) == 0 || m.selected >= len(m.tasks) {
+		return func() tea.Msg { return diffMsg{"no task selected"} }
+	}
+	worktree := m.tasks[m.selected].Worktree
+	return func() tea.Msg {
+		return diffMsg{runGitDiff(worktree)}
+	}
+}
 
 func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -227,57 +279,98 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "tab":
-			m.activePane = 1 - m.activePane
+			if m.diffVisible {
+				m.activePane = (m.activePane + 1) % 3
+			} else {
+				m.activePane = 1 - m.activePane
+			}
+			return m, nil
+
+		case "d":
+			m.diffVisible = !m.diffVisible
+			if !m.diffVisible && m.activePane == paneDiff {
+				m.activePane = paneLog
+			}
+			if m.diffVisible {
+				return m, m.fetchDiffCmd()
+			}
 			return m, nil
 
 		case "j", "down":
-			if m.activePane == paneTaskList {
+			switch m.activePane {
+			case paneTaskList:
 				if m.selected < len(m.tasks)-1 {
 					m.selected++
 					m.logLines = nil
 					m.logScrollOff = 99999
-					return m, m.refresh
+					m.diffScrollOff = 0
+					cmds := []tea.Cmd{m.refresh}
+					if m.diffVisible {
+						cmds = append(cmds, m.fetchDiffCmd())
+					}
+					return m, tea.Batch(cmds...)
 				}
-			} else {
+			case paneLog:
 				m.logScrollOff++
+			case paneDiff:
+				m.diffScrollOff++
 			}
 			return m, nil
 
 		case "k", "up":
-			if m.activePane == paneTaskList {
+			switch m.activePane {
+			case paneTaskList:
 				if m.selected > 0 {
 					m.selected--
 					m.logLines = nil
 					m.logScrollOff = 99999
-					return m, m.refresh
+					m.diffScrollOff = 0
+					cmds := []tea.Cmd{m.refresh}
+					if m.diffVisible {
+						cmds = append(cmds, m.fetchDiffCmd())
+					}
+					return m, tea.Batch(cmds...)
 				}
-			} else {
+			case paneLog:
 				if m.logScrollOff > 0 {
 					m.logScrollOff--
+				}
+			case paneDiff:
+				if m.diffScrollOff > 0 {
+					m.diffScrollOff--
 				}
 			}
 			return m, nil
 
 		case "g":
-			if m.activePane == paneTaskList {
+			switch m.activePane {
+			case paneTaskList:
 				m.selected = 0
 				m.logLines = nil
 				m.logScrollOff = 99999
+				m.diffScrollOff = 0
 				return m, m.refresh
+			case paneLog:
+				m.logScrollOff = 0
+			case paneDiff:
+				m.diffScrollOff = 0
 			}
-			m.logScrollOff = 0
 			return m, nil
 
 		case "G":
-			if m.activePane == paneTaskList {
+			switch m.activePane {
+			case paneTaskList:
 				if len(m.tasks) > 0 {
 					m.selected = len(m.tasks) - 1
 					m.logLines = nil
 					m.logScrollOff = 99999
+					m.diffScrollOff = 0
 					return m, m.refresh
 				}
-			} else {
+			case paneLog:
 				m.logScrollOff = 99999
+			case paneDiff:
+				m.diffScrollOff = 99999
 			}
 			return m, nil
 
@@ -297,8 +390,21 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+	case pulseTickMsg:
+		m.pulseFrame = (m.pulseFrame + 1) % 4
+		return m, pulseTickCmd()
+
 	case tickMsg:
-		return m, tea.Batch(m.refresh, tickCmd())
+		cmds := []tea.Cmd{m.refresh, tickCmd()}
+		if m.diffVisible && time.Since(m.diffLastFetch) >= 2*time.Second {
+			cmds = append(cmds, m.fetchDiffCmd())
+		}
+		return m, tea.Batch(cmds...)
+
+	case diffMsg:
+		m.diffContent = msg.content
+		m.diffLastFetch = time.Now()
+		return m, nil
 
 	case tasksMsg:
 		m.tasks = []*types.Task(msg)
@@ -317,6 +423,38 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.logLines = nil
 			}
 		}
+
+		// Precompute live statuses (CPU probe writes disk; keep out of View).
+		newStatuses := make(map[string]types.Status, len(m.tasks))
+		for _, t := range m.tasks {
+			newStatuses[t.ID] = liveStatus(t, m.cputimeDir)
+		}
+		m.liveStatuses = newStatuses
+
+		// Update burn-rate sparkline history from log file size deltas.
+		for _, t := range m.tasks {
+			var sz int64
+			if t.Log != "" {
+				if info, err := os.Stat(t.Log); err == nil {
+					sz = info.Size()
+				}
+			}
+			if prev, ok := m.logSizeCache[t.ID]; ok {
+				delta := float64(sz - prev)
+				if delta < 0 {
+					delta = 0
+				}
+				h := m.burnHistory[t.ID]
+				h = append(h, delta)
+				const maxHistory = 12
+				if len(h) > maxHistory {
+					h = h[len(h)-maxHistory:]
+				}
+				m.burnHistory[t.ID] = h
+			}
+			m.logSizeCache[t.ID] = sz
+		}
+
 		// Keep palette matches in sync after task list refresh.
 		if m.paletteOpen {
 			m.updatePaletteMatches()
@@ -337,36 +475,74 @@ func (m dashModel) View() string {
 	}
 
 	// Layout geometry: header(1) + border-top(1) + content + border-bot(1) + footer(2)
-	leftW := m.width * 2 / 5
-	rightW := m.width - leftW - 4 // 4 = two borders × 2 cols each
 	innerH := m.height - 5
 	if innerH < 3 {
 		innerH = 3
 	}
 
-	left := m.renderTaskList(leftW, innerH)
-	right := m.renderLog(rightW, innerH)
+	var body string
+	if m.diffVisible {
+		// 3-column layout: each rounded border costs 2 cols → inner = width - 6
+		total := m.width - 6
+		leftW := total / 4
+		rightW := total / 4
+		centerW := total - leftW - rightW
+		if centerW < 1 {
+			centerW = 1
+		}
 
-	// Focus-aware borders
-	leftBorder := styleUnfocusBorder.Width(leftW).Height(innerH)
-	rightBorder := styleUnfocusBorder.Width(rightW).Height(innerH)
-	if m.activePane == paneTaskList {
-		leftBorder = styleFocusBorder.Width(leftW).Height(innerH)
+		left := m.renderTaskList(leftW, innerH)
+		center := m.renderLog(centerW, innerH)
+		right := m.renderDiff(rightW, innerH)
+
+		leftBorder := styleUnfocusBorder.Width(leftW).Height(innerH)
+		centerBorder := styleUnfocusBorder.Width(centerW).Height(innerH)
+		rightBorder := styleUnfocusBorder.Width(rightW).Height(innerH)
+		switch m.activePane {
+		case paneTaskList:
+			leftBorder = styleFocusBorder.Width(leftW).Height(innerH)
+		case paneLog:
+			centerBorder = styleFocusBorder.Width(centerW).Height(innerH)
+		case paneDiff:
+			rightBorder = styleFocusBorder.Width(rightW).Height(innerH)
+		}
+
+		body = lipgloss.JoinHorizontal(lipgloss.Top,
+			leftBorder.Render(left),
+			centerBorder.Render(center),
+			rightBorder.Render(right),
+		)
 	} else {
-		rightBorder = styleFocusBorder.Width(rightW).Height(innerH)
-	}
+		// 2-column layout (existing behaviour)
+		leftW := m.width * 2 / 5
+		rightW := m.width - leftW - 4
 
-	body := lipgloss.JoinHorizontal(lipgloss.Top,
-		leftBorder.Render(left),
-		rightBorder.Render(right),
-	)
+		left := m.renderTaskList(leftW, innerH)
+		right := m.renderLog(rightW, innerH)
+
+		leftBorder := styleUnfocusBorder.Width(leftW).Height(innerH)
+		rightBorder := styleUnfocusBorder.Width(rightW).Height(innerH)
+		if m.activePane == paneTaskList {
+			leftBorder = styleFocusBorder.Width(leftW).Height(innerH)
+		} else {
+			rightBorder = styleFocusBorder.Width(rightW).Height(innerH)
+		}
+
+		body = lipgloss.JoinHorizontal(lipgloss.Top,
+			leftBorder.Render(left),
+			rightBorder.Render(right),
+		)
+	}
 
 	header := styleTitle.Render("fleetorch") + styleMuted.Render("  "+time.Now().Format("15:04:05"))
 
 	// Two-line sticky footer
 	paneName := "tasks"
-	if m.activePane == paneLog {
+	switch m.activePane {
+	case paneLog:
 		paneName = "log"
+	case paneDiff:
+		paneName = "diff"
 	}
 
 	foldIndicator := ""
@@ -382,10 +558,17 @@ func (m dashModel) View() string {
 		foldIndicator
 
 	var keymapStr string
-	if m.activePane == paneTaskList {
-		keymapStr = "tab: switch  •  j/k: select  •  K: kill  •  ctrl+k: find  •  r: refresh  •  q: quit"
-	} else {
-		keymapStr = "tab: switch  •  j/k: scroll  •  f: fold  •  g/G: top/bottom  •  q: quit"
+	switch {
+	case m.activePane == paneDiff:
+		keymapStr = "tab: switch  •  j/k: scroll diff  •  g/G: top/bottom  •  d: hide diff  •  q: quit"
+	case m.activePane == paneTaskList:
+		keymapStr = "tab: switch  •  j/k: select  •  K: kill  •  d: toggle diff  •  ctrl+k: find  •  r: refresh  •  q: quit"
+	default: // paneLog
+		if m.diffVisible {
+			keymapStr = "tab: switch  •  j/k: scroll  •  f: fold  •  d: toggle diff  •  g/G: top/bottom  •  q: quit"
+		} else {
+			keymapStr = "tab: switch  •  j/k: scroll  •  f: fold  •  g/G: top/bottom  •  q: quit"
+		}
 	}
 	keymapLine := styleMuted.Render(keymapStr)
 	if m.flashMessage != "" {
@@ -443,13 +626,14 @@ func (m dashModel) renderPalette() string {
 	} else {
 		for i, pm := range m.paletteMatches {
 			t := m.tasks[pm.taskIdx]
-			live := liveStatus(t)
+			live := m.liveStatuses[t.ID]
+			dot := pulseDot(m.pulseFrame, live)
 			statusStr := styleForStatus(live).Render(string(live))
-			line := truncate(t.ID, 18) + "  " +
+			line := dot + " " + truncate(t.ID, 18) + "  " +
 				styleMuted.Render(truncate(t.Agent, 12)) + "  " +
 				statusStr
 			if i == m.paletteSelIdx {
-				b.WriteString(styleSel.Width(46).Render("▸ " + line))
+				b.WriteString(styleSel.Width(50).Render("▸ " + line))
 			} else {
 				b.WriteString("  " + line)
 			}
@@ -590,14 +774,24 @@ func (m dashModel) renderTaskList(w, h int) string {
 
 	var b strings.Builder
 	for i, t := range m.tasks {
-		live := liveStatus(t)
+		live := m.liveStatuses[t.ID]
+		dot := pulseDot(m.pulseFrame, live)
+
+		burningTag := ""
+		if isBurning(t) && live == types.StatusActive {
+			burningTag = " " + styleIdle.Render("burning")
+		}
+
 		statusStr := styleForStatus(live).Render(fmt.Sprintf("%-8s", string(live)))
+		spark := sparklineStr(m.burnHistory[t.ID])
 		bar := budgetBar(t.BudgetUSD)
-		line := truncate(t.ID, 12) + "  " +
+
+		line := dot + " " + truncate(t.ID, 12) + "  " +
 			truncate(t.Agent, 10) + "  " +
-			statusStr + "  " +
+			statusStr + burningTag + "  " +
 			fmt.Sprintf("%-6s", age(t.StartedAt)) + "  " +
-			bar
+			spark + " " + bar
+
 		if i == m.selected {
 			b.WriteString(styleSel.Width(w).Render("▸ " + line))
 		} else {
@@ -675,6 +869,69 @@ func (m dashModel) renderLog(w, h int) string {
 	return header + "\n" + body + "\n" + scrollLine
 }
 
+// renderDiff renders the live git diff pane with scroll support.
+func (m dashModel) renderDiff(w, h int) string {
+	if len(m.tasks) == 0 {
+		return styleMuted.Render("no diff available")
+	}
+	t := m.tasks[m.selected]
+	wtDisplay := t.Worktree
+	if len(wtDisplay) > w-8 && w > 8 {
+		wtDisplay = "…" + wtDisplay[len(wtDisplay)-(w-9):]
+	}
+	header := styleTitle.Render("diff") + styleMuted.Render(" — "+wtDisplay)
+
+	visibleH := h - 2
+	if visibleH < 1 {
+		visibleH = 1
+	}
+
+	if m.diffContent == "" {
+		return header + "\n\n" + styleMuted.Render("loading…")
+	}
+
+	rawLines := strings.Split(m.diffContent, "\n")
+	coloredLines := make([]string, len(rawLines))
+	for i, l := range rawLines {
+		coloredLines[i] = colorDiffLine(l)
+	}
+
+	maxOff := len(coloredLines) - visibleH
+	if maxOff < 0 {
+		maxOff = 0
+	}
+	off := m.diffScrollOff
+	if off > maxOff {
+		off = maxOff
+	}
+
+	end := off + visibleH
+	if end > len(coloredLines) {
+		end = len(coloredLines)
+	}
+
+	padded := make([]string, visibleH)
+	copy(padded, coloredLines[off:end])
+	body := strings.Join(padded, "\n")
+
+	var posText string
+	switch {
+	case len(coloredLines) <= visibleH:
+		posText = "[ ALL ]"
+	case off == 0:
+		posText = "[ TOP ]"
+	case off >= maxOff:
+		posText = "[ BOT ]"
+	default:
+		pct := 100 * off / maxOff
+		posText = fmt.Sprintf("[ %d%% ]", pct)
+	}
+
+	scrollLine := lipgloss.NewStyle().Width(w).Align(lipgloss.Right).Foreground(colorMuted).Render(posText)
+
+	return header + "\n" + body + "\n" + scrollLine
+}
+
 func styleForStatus(s types.Status) lipgloss.Style {
 	switch s {
 	case types.StatusActive, types.StatusRunning:
@@ -728,6 +985,141 @@ func budgetBar(budgetUSD float64) string {
 	return lipgloss.NewStyle().Foreground(color).Render(sb.String())
 }
 
+// pulseDot returns an animated dot character colored by task liveness.
+func pulseDot(frame int, status types.Status) string {
+	ch := string(pulseChars[frame%4])
+	switch status {
+	case types.StatusActive, types.StatusRunning:
+		return lipgloss.NewStyle().Foreground(colorSuccess).Render(ch)
+	case types.StatusIdle:
+		return lipgloss.NewStyle().Foreground(colorWarning).Render(ch)
+	default:
+		return styleMuted.Render(ch)
+	}
+}
+
+// sparklineStr renders a 12-cell burn-rate sparkline from log-size-delta samples.
+func sparklineStr(samples []float64) string {
+	const width = 12
+	runes := make([]rune, width)
+
+	if len(samples) == 0 {
+		for i := range runes {
+			runes[i] = sparkRunes[0]
+		}
+		return styleMuted.Render(string(runes))
+	}
+
+	maxVal := 0.0
+	for _, v := range samples {
+		if v > maxVal {
+			maxVal = v
+		}
+	}
+
+	// Right-align samples into the width window.
+	src := samples
+	if len(src) > width {
+		src = src[len(src)-width:]
+	}
+	start := width - len(src)
+
+	for i := range runes {
+		runes[i] = sparkRunes[0] // pad left with low bar
+	}
+	for i, v := range src {
+		idx := 0
+		if maxVal > 0 {
+			idx = int(v / maxVal * float64(len(sparkRunes)-1))
+			if idx >= len(sparkRunes) {
+				idx = len(sparkRunes) - 1
+			}
+		}
+		runes[start+i] = sparkRunes[idx]
+	}
+
+	return styleMuted.Render(string(runes))
+}
+
+// isBurning returns true when a running task's log has been silent for >3 min,
+// indicating stdout is buffered while the process may still be consuming CPU.
+func isBurning(t *types.Task) bool {
+	if t.PID <= 0 || t.Status == types.StatusDone || t.Status == types.StatusFailed {
+		return false
+	}
+	if t.Log == "" {
+		return false
+	}
+	info, err := os.Stat(t.Log)
+	if err != nil {
+		return false
+	}
+	return time.Since(info.ModTime()) > 3*time.Minute
+}
+
+// colorDiffLine applies color to a unified diff line for the diff pane.
+func colorDiffLine(line string) string {
+	switch {
+	case strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++"):
+		return lipgloss.NewStyle().Foreground(colorSuccess).Render(line)
+	case strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---"):
+		return lipgloss.NewStyle().Foreground(colorDanger).Render(line)
+	default:
+		return styleMuted.Render(line)
+	}
+}
+
+// runGitDiff produces a stat summary + first 200 lines of unified diff for worktree.
+func runGitDiff(worktree string) string {
+	if worktree == "" {
+		return "no diff available"
+	}
+
+	stat, err := runGitCmd(worktree, "diff", "--stat", "HEAD")
+	if err != nil {
+		// Try unstaged diff if HEAD lookup fails (e.g. initial commit).
+		stat, _ = runGitCmd(worktree, "diff")
+		if stat == "" {
+			return "no diff available"
+		}
+	}
+
+	diff, _ := runGitCmd(worktree, "diff", "HEAD")
+	if diff == "" {
+		diff, _ = runGitCmd(worktree, "diff")
+	}
+
+	// Limit to 200 lines without shelling out to head(1) — cross-platform.
+	lines := strings.Split(diff, "\n")
+	truncated := false
+	if len(lines) > 200 {
+		lines = lines[:200]
+		truncated = true
+	}
+
+	result := strings.TrimRight(stat, "\n")
+	if body := strings.Join(lines, "\n"); body != "" {
+		result += "\n" + body
+	}
+	if truncated {
+		result += "\n" + styleMuted.Render("… (truncated at 200 lines)")
+	}
+	return result
+}
+
+// runGitCmd runs git with the given args inside dir and returns stdout.
+func runGitCmd(dir string, args ...string) (string, error) {
+	cmdArgs := append([]string{"-C", dir}, args...)
+	cmd := exec.Command("git", cmdArgs...)
+	var out, errBuf bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &errBuf
+	if err := cmd.Run(); err != nil {
+		return "", err
+	}
+	return out.String(), nil
+}
+
 // readLogTail returns the last n bytes of path (or less if smaller).
 func readLogTail(path string, n int) string {
 	f, err := os.Open(path)
@@ -770,8 +1162,10 @@ func doDashTUI() error {
 	if err := paths.EnsureDirs(); err != nil {
 		return err
 	}
+	cputimeDir := filepath.Join(paths.DataDir, "cputime")
+	_ = os.MkdirAll(cputimeDir, 0o755)
 	st := store.New(paths.StateFile)
-	p := tea.NewProgram(newDashModel(st), tea.WithAltScreen())
+	p := tea.NewProgram(newDashModel(st, cputimeDir), tea.WithAltScreen())
 	_, err = p.Run()
 	return err
 }
