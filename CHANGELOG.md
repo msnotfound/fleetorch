@@ -6,6 +6,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.4.9] — 2026-05-29
+
+### Added
+- feat(tui): interactive intro tour on bare `fleetorch` invocation
+
 ## [0.4.7] — 2026-05-28
 
 ### Fixed
