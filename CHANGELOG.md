@@ -6,18 +6,27 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
-- feat(dash): floating kill-confirm modal, Ctrl-K command palette with fuzzy finder, f key to fold reasoning blocks in log viewer
-- feat(dash): live pulse dot (●◐○◑, 500ms) next to each task in dash + list; token-burn sparklines (▁–█, 12-cell) alongside budget bar; d-key split-pane git diff viewer with scroll, color, and 2s cache
-
 ## [0.6.0] — 2026-05-29
 
-### Added
+A large release — 12 features across three areas: runtime/state, policy/orchestration, and TUI/UX.
+
+### Added — Runtime / state
 - **Orphan recovery** — `list` and `prune --recover-orphans` scan the socket dir, cross-reference live PIDs, and restore lost task entries. If `state.json` is deleted or corrupted while workers are running, you no longer lose visibility into them.
 - **CPU-time liveness** — replaces the log-mtime "idle after 3min" heuristic with real CPU usage probes (`/proc/<pid>/stat` on Unix, `GetProcessTimes` on Windows). A long-running silent agent (e.g. Claude headless burning tokens without flushing stdout) now correctly shows as `active` instead of `idle`.
+
+### Added — Policy / orchestration
 - **Ledger-as-policy** — new `[policy]` config section enforces caps at spawn time: `max_concurrent_total`, `max_concurrent_per_agent`, `max_spend_usd_per_hour`, `max_spend_usd_per_day`. Bypass with `--force`. New `fleetorch policy show` reports caps + current usage.
 - **`--pipe-stdout-to <task-id>`** — IPC mesh. New spawn flag mirrors the task's PTY stdout into another running task's control socket, letting agents form pipelines.
-- **Interactive spawn form on the final tour slide** — bare `fleetorch` now ends with a huh-based form (agent type → task id → prompt) that calls `spawn` directly. No need to remember the CLI flags on first run.
 - **Team presets** — `fleetorch preset list` / `fleetorch preset run <name>` spawn coordinated agent topologies from named TOML blueprints. Three seeded: `feature-squad` (codex builds, sonnet reviews, haiku writes docs), `bugfix-swarm` (3 codex agents race on the same bug, sonnet picks the winner), `research-team` (gemini reads long docs, sonnet synthesizes, haiku summarizes). Custom presets live under `<DataDir>/presets/`.
+
+### Added — TUI / UX
+- **Interactive spawn form on the final tour slide** — bare `fleetorch` now ends with a huh-based form (agent type → task id → prompt) that calls `spawn` directly. No need to remember the CLI flags on first run.
+- **Floating kill-confirm modal** — pressing `K` in dash now opens a centered confirmation dialog (`y/N`) with task id, agent, age, and budget burned, instead of killing silently.
+- **Command palette (`Ctrl-K`)** — fuzzy finder over task IDs. Type to filter, enter to jump selection, esc to cancel. Modals are mutually exclusive.
+- **Fold reasoning blocks** (`f` key) — log viewport collapses `<thinking>` blocks, `tool_use:` lines, and raw JSON tool-call payloads into a single `[+ N hidden reasoning lines]` marker. Toggle on/off.
+- **Live pulse indicator** — animated dot (`●◐○◑`) next to each task in dash (500ms tick) and a static colored dot in `fleetorch list`. Color reflects liveness; tasks with silent stdout but live CPU show a ` burning` label.
+- **Burn-rate sparklines** — 12-cell `▁–█` sparkline alongside the budget bar in dash showing recent burn rate per task.
+- **Split-pane git diff viewer** (`d` key) — toggles a third pane showing `git diff --stat HEAD` + first 200 lines of `git diff HEAD` for the focused task's worktree. Color-coded, 2s cache, `Tab` cycles through all three panes.
 
 ## [0.5.0] — 2026-05-29
 
