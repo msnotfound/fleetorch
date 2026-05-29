@@ -47,15 +47,16 @@ type AgentType struct {
 
 // SpawnSpec is the input to Supervisor.Spawn.
 type SpawnSpec struct {
-	ID        string
-	Agent     AgentType
-	Prompt    string
-	Worktree  string
-	Log       string
-	Socket    string // optional Unix-domain control socket for live attach
-	BudgetUSD float64
-	Turns     int
-	Model     string
+	ID           string
+	Agent        AgentType
+	Prompt       string
+	Worktree     string
+	Log          string
+	Socket       string // optional Unix-domain control socket for live attach
+	BudgetUSD    float64
+	Turns        int
+	Model        string
+	PipeStdoutTo string // optional task-id: pipe this task's PTY stdout to that task's socket
 }
 
 // State is the on-disk task registry.

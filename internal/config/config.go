@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"github.com/BurntSushi/toml"
 )
 
 // Paths holds the resolved directory layout for this OS + user.
@@ -84,6 +86,33 @@ func userDataDir() (string, error) {
 		}
 		return filepath.Join(home, ".local", "share"), nil
 	}
+}
+
+// Policy holds concurrency and spend caps read from the [policy] TOML section.
+// Zero values mean unlimited.
+type Policy struct {
+	MaxConcurrentTotal    int     `toml:"max_concurrent_total"`
+	MaxConcurrentPerAgent int     `toml:"max_concurrent_per_agent"`
+	MaxSpendUSDPerHour    float64 `toml:"max_spend_usd_per_hour"`
+	MaxSpendUSDPerDay     float64 `toml:"max_spend_usd_per_day"`
+}
+
+// UserConfig is the parsed content of config.toml.
+type UserConfig struct {
+	Policy Policy `toml:"policy"`
+}
+
+// LoadConfig reads and parses config.toml. Returns zero-value defaults when
+// the file does not exist (all caps unlimited).
+func (p Paths) LoadConfig() (UserConfig, error) {
+	var cfg UserConfig
+	if _, err := os.Stat(p.ConfigFile); os.IsNotExist(err) {
+		return cfg, nil
+	}
+	if _, err := toml.DecodeFile(p.ConfigFile, &cfg); err != nil {
+		return cfg, fmt.Errorf("parse config: %w", err)
+	}
+	return cfg, nil
 }
 
 // EnsureDirs creates all required directories with 0o755 permissions.

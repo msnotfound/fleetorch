@@ -44,6 +44,7 @@ func main() {
 		newPruneCmd(),
 		newDoctorCmd(),
 		newWorkerCmd(),
+		newPolicyCmdReal(),
 	)
 
 	if err := root.Execute(); err != nil {
