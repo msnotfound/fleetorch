@@ -6,6 +6,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## v0.4.8
+
+### Fixed
+- `$VISUAL` / `$EDITOR` values with flags or editor paths containing spaces now launch correctly for `fleetorch agent edit` and `fleetorch config edit`.
+
 ## [0.4.7] — 2026-05-28
 
 ### Fixed

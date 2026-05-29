@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"text/tabwriter"
 
@@ -70,7 +69,10 @@ func doAgentEdit(name string) error {
 	if _, err := os.Stat(target); err != nil {
 		return fmt.Errorf("agent %q not installed (looked for %s)", name, target)
 	}
-	c := exec.Command(resolveEditor(), target)
+	c, err := editorCommand(target)
+	if err != nil {
+		return err
+	}
 	c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return c.Run()
 }

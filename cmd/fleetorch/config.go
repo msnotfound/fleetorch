@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 
 	"github.com/spf13/cobra"
 
@@ -51,7 +50,10 @@ func newConfigCmdReal() *cobra.Command {
 						return err
 					}
 				}
-				c := exec.Command(resolveEditor(), p.ConfigFile)
+				c, err := editorCommand(p.ConfigFile)
+				if err != nil {
+					return err
+				}
 				c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
 				return c.Run()
 			},
