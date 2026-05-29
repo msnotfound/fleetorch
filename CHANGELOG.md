@@ -10,6 +10,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Fixed
 - `fleetorch agent add` now installs custom agent TOMLs as `<name>.toml` using the parsed `name` field, so `agent remove <name>` and `agent edit <name>` can find agents added from differently named source files.
+- `$VISUAL` / `$EDITOR` values with flags or paths containing spaces now launch correctly for `fleetorch agent edit` and `fleetorch config edit`. Handles unquoted Windows paths ending in `.exe`/`.cmd`/`.bat`/`.com` plus standard shell-style quoted arguments. A shared `editorCommand()` helper deduplicates the two call sites.
 
 ## [0.4.7] — 2026-05-28
 
