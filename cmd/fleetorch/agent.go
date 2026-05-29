@@ -6,12 +6,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"text/tabwriter"
 
+	"github.com/BurntSushi/toml"
 	"github.com/spf13/cobra"
 
 	"github.com/msnotfound/fleetorch/internal/agents"
 	"github.com/msnotfound/fleetorch/internal/config"
+	"github.com/msnotfound/fleetorch/internal/types"
 )
 
 func newAgentCmdReal() *cobra.Command {
@@ -107,7 +110,17 @@ func doAgentAdd(src string) error {
 	if err := paths.EnsureDirs(); err != nil {
 		return err
 	}
-	dst := filepath.Join(paths.AgentsDir, filepath.Base(src))
+
+	var agent types.AgentType
+	if _, err := toml.DecodeFile(src, &agent); err != nil {
+		return err
+	}
+	agent.Name = strings.TrimSpace(agent.Name)
+	if agent.Name == "" {
+		return fmt.Errorf("agent TOML %s must set a non-empty name", src)
+	}
+
+	dst := filepath.Join(paths.AgentsDir, agent.Name+".toml")
 
 	in, err := os.Open(src)
 	if err != nil {

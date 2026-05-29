@@ -6,6 +6,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.4.8] — 2026-05-29
+
+### Fixed
+- `fleetorch agent add` now installs custom agent TOMLs as `<name>.toml` using the parsed `name` field, so `agent remove <name>` and `agent edit <name>` can find agents added from differently named source files.
+
 ## [0.4.7] — 2026-05-28
 
 ### Fixed
