@@ -6,6 +6,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Fixed
+- fix(agents): refresh seeded gemini and claude TOMLs for current CLI versions (gemini needs -p + --skip-trust, claude needs prompt in args not prompt_arg)
+
 ## [0.6.0] — 2026-05-29
 
 A large release — 12 features across three areas: runtime/state, policy/orchestration, and TUI/UX.

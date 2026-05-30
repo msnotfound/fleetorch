@@ -1,7 +1,7 @@
 name = "gemini"
 command = "gemini"
-args = ["--yolo"]
-prompt_arg = "{prompt}"
+args = ["--skip-trust", "--yolo", "-p", "{prompt}"]
+prompt_arg = ""
 default_budget_usd = 0
 default_turns = 0
 sandbox = "worktree"
