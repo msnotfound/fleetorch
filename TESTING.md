@@ -3,7 +3,7 @@
 You (a human or a coding agent: Claude, Codex, Gemini) are about to install fleetorch from scratch and exercise its full surface. The goal is **not** to confirm the happy path — it's to find bugs. Be skeptical, document everything, and finish with a written report.
 
 The repo: https://github.com/msnotfound/fleetorch
-The latest release at time of writing: **v0.4.0**.
+The latest release at time of writing: **v0.6.0**.
 
 ---
 
@@ -375,9 +375,17 @@ $FT list --json                     # JSON array of tasks
 
 **Expected:** `doctor` prints version/OS/paths/deps/agents/state with `OK`/`--` markers per dependency. Warnings section is empty if everything is healthy. `list --json` produces a parseable JSON array (empty `[]` if no tasks).
 
-### 3n. logs --err (added in v0.4.3)
+**JSON semantics:** `status` is the persisted state; `live_status` is the computed-on-read state from PID + CPU probe. They can disagree: `status=running, live_status=dead` means the worker died without updating its row. Most JSON consumers should prefer `live_status`.
 
-After running anything in §3a–§3l:
+### 3n. policy + preset commands (added in v0.5.0/v0.6.0)
+
+- `$FT policy show` — prints policy caps and current live usage.
+- `$FT preset list` — lists installed team presets.
+- `$FT preset run <name>` — spawns every agent in a named team preset; use a safe prompt and note every spawned task id.
+
+### 3o. logs --err (added in v0.4.3)
+
+After running anything in §3a–§3n:
 
 ```bash
 $FT logs <task-id> --err   # prints worker-side error sidecar, "(no worker errors recorded for this task)" if clean
@@ -385,7 +393,7 @@ $FT logs <task-id> --err   # prints worker-side error sidecar, "(no worker error
 
 This is the diagnostic for the **silent-spawn-failure** case — when `fleetorch spawn` prints `spawned: X` but `fleetorch list` shows nothing. The detached worker writes startup errors to `<DataDir>/errors/<id>.err` and `logs --err` surfaces them.
 
-### 3o. prune (added in v0.4.3)
+### 3p. prune (added in v0.4.3)
 
 After your dry-exercise above, clean up:
 
