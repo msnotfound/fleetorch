@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"unicode"
+
+	"golang.org/x/term"
 )
 
 // resolveEditor returns the user's preferred editor, falling back to a
@@ -35,9 +38,23 @@ func editorCommand(target string) (*exec.Cmd, error) {
 	if err != nil {
 		return nil, err
 	}
+	if isInteractiveEditor(fields[0]) && (!term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd()))) {
+		return nil, fmt.Errorf("editor %q is interactive but stdin/stdout is not a TTY; set $EDITOR to a non-interactive command (e.g. cat, or your editor with appropriate flags) or run from a real terminal", fields[0])
+	}
 	args := append([]string{}, fields[1:]...)
 	args = append(args, target)
 	return exec.Command(fields[0], args...), nil
+}
+
+func isInteractiveEditor(name string) bool {
+	base := strings.ToLower(filepath.Base(name))
+	base = strings.TrimSuffix(base, ".exe")
+	switch base {
+	case "vi", "vim", "nano", "emacs", "ed", "nvim", "neovim", "micro", "helix", "hx":
+		return true
+	default:
+		return false
+	}
 }
 
 func splitEditor(editor string) ([]string, error) {
