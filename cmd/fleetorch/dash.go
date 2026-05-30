@@ -633,13 +633,20 @@ func (m dashModel) renderLog(w, h int) string {
 	}
 
 	padded := make([]string, visibleH)
-	copy(padded, m.logLines[off:end])
+	src := m.logLines[off:end]
+	for i := 0; i < visibleH; i++ {
+		if i < len(src) {
+			// Clamp every line to the pane width so terminal soft-wrap cannot
+			// inflate the vertical budget and push neighbouring panes off-screen.
+			padded[i] = clipVisible(src[i], w)
+		}
+	}
 	body := strings.Join(padded, "\n")
 
 	posText := scrollPos(off, maxOff, len(m.logLines), visibleH)
 	scrollLine := lipgloss.NewStyle().Width(w).Align(lipgloss.Right).Foreground(colorMuted).Render(posText)
 
-	return header + "\n" + body + "\n" + scrollLine
+	return clipVisible(header, w) + "\n" + body + "\n" + scrollLine
 }
 
 func (m dashModel) renderDiff(w, h int) string {
@@ -679,13 +686,18 @@ func (m dashModel) renderDiff(w, h int) string {
 	}
 
 	padded := make([]string, visibleH)
-	copy(padded, colored[off:end])
+	src := colored[off:end]
+	for i := 0; i < visibleH; i++ {
+		if i < len(src) {
+			padded[i] = clipVisible(src[i], w)
+		}
+	}
 	body := strings.Join(padded, "\n")
 
 	posText := scrollPos(off, maxOff, len(colored), visibleH)
 	scrollLine := lipgloss.NewStyle().Width(w).Align(lipgloss.Right).Foreground(colorMuted).Render(posText)
 
-	return header + "\n" + body + "\n" + scrollLine
+	return clipVisible(header, w) + "\n" + body + "\n" + scrollLine
 }
 
 func (m dashModel) renderHelp() string {
@@ -853,6 +865,47 @@ func colorDiffLine(line string) string {
 	default:
 		return styleMuted.Render(line)
 	}
+}
+
+// clipVisible trims s to at most w visible columns while preserving ANSI SGR
+// escape sequences (color/style). This prevents long log lines from soft-
+// wrapping in the terminal and inflating the vertical budget of a pane, which
+// would push neighbouring panes off-screen. Approximate: counts each rune as
+// width 1 (does not handle wide CJK).
+func clipVisible(s string, w int) string {
+	if w <= 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	visible := 0
+	runes := []rune(s)
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		if r == 0x1b && i+1 < len(runes) && runes[i+1] == '[' {
+			// Pass through the CSI sequence verbatim.
+			b.WriteRune(r)
+			b.WriteRune(runes[i+1])
+			i += 2
+			for i < len(runes) {
+				c := runes[i]
+				b.WriteRune(c)
+				if c >= 0x40 && c <= 0x7e {
+					break
+				}
+				i++
+			}
+			continue
+		}
+		if visible >= w {
+			// Skip remaining visible runes but keep emitting any trailing SGR
+			// reset that may follow; simplest: just stop here.
+			break
+		}
+		b.WriteRune(r)
+		visible++
+	}
+	return b.String()
 }
 
 // sanitizeForViewport strips ANSI cursor-positioning and control sequences that

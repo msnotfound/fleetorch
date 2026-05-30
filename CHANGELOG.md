@@ -6,6 +6,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.6.5] — 2026-05-30
+
+### Fixed
+- **Dash log pane no longer pushes the task pane off-screen.** Long log lines (gemini in particular emits very wide ones) were soft-wrapping inside the log pane, inflating its rendered height beyond the allotted box. Lipgloss preserved everything and the terminal scrolled, scrolling the top of the task pane out of view. Each log line and diff line is now clipped to the pane width with an ANSI-aware truncator that preserves SGR color codes mid-line. The same clamp applies to pane headers.
+
 ## [0.6.4] — 2026-05-30
 
 ### Fixed
@@ -235,7 +240,8 @@ Docs-only catch-up. No binary changes from v0.4.4.
 - GoReleaser pipeline → GitHub Releases on every tag push.
 - `curl|sh` installer at `scripts/install.sh`.
 
-[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.6.4...HEAD
+[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.6.5...HEAD
+[0.6.5]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.5
 [0.6.4]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.4
 [0.6.3]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.3
 [0.6.2]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.2
