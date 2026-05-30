@@ -202,7 +202,9 @@ Docs-only catch-up. No binary changes from v0.4.4.
 - GoReleaser pipeline → GitHub Releases on every tag push.
 - `curl|sh` installer at `scripts/install.sh`.
 
-[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.4.8...HEAD
+[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/msnotfound/fleetorch/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/msnotfound/fleetorch/compare/v0.4.8...v0.5.0
 [0.4.8]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.8
 [0.4.7]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.7
 [0.4.6]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.6

@@ -259,6 +259,8 @@ fleetorch list   ◄── state.json
 | `agent list \| add \| remove \| edit` | Manage agent-type plugins. `edit <name>` opens the TOML in `$EDITOR`. |
 | `config show \| edit` | Print resolved paths or open the config file in `$EDITOR`. |
 | `ledger` | Cumulative spawn counts per agent type. |
+| `policy show` | Manage spawn policy caps. |
+| `preset list \| run` | Run coordinated agent teams from TOML blueprints. |
 | `merge-resolve <file>...` | Resolve git conflict blocks by concatenating both sides — port of the bash-era `auto_keep_both.py`. |
 | `upgrade [--force]` | Self-update to the latest GitHub release. |
 | `monitor [--interval 60s]` | Foreground narrator: polls the fleet and summarizes stuck/failed tasks via `claude-haiku` (~$0.05/hr). |
@@ -299,7 +301,7 @@ Then `fleetorch agent list` will show it and `fleetorch spawn my-custom-agent ..
 - **Terminal resize.** SIGWINCH on Unix; 250 ms polling proxy on Windows. Both propagate to the agent's PTY.
 - **Self-update.** `fleetorch upgrade` works on all three OSes (with a rename-aside fallback for Windows's locked-`.exe` case).
 - **Dashboard.** Interactive bubbletea TUI; `--plain` for SSH/dumb terms.
-- **Plugins.** Manual TOML placement today. A remote `fleetorch agent install <url>` registry is planned for **v0.5**.
+- **Custom agents.** Drop a TOML in `<AgentsDir>/`. Remote registry / marketplace is not planned at this time.
 
 ### Known caveats
 
