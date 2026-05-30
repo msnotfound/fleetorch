@@ -1,7 +1,7 @@
 name = "claude-haiku"
 command = "claude"
-args = ["-p", "--model", "haiku", "--verbose", "--max-turns", "50", "--allowedTools", "Read,Edit,Write,Bash(git *),Bash(npm *),Bash(pnpm *),Bash(node *),Bash(python *),Bash(pytest *),Bash(go *)"]
-prompt_arg = "{prompt}"
+args = ["-p", "{prompt}", "--model", "haiku", "--verbose", "--max-turns", "50", "--allowedTools", "Read,Edit,Write,Bash(git *),Bash(npm *),Bash(pnpm *),Bash(node *),Bash(python *),Bash(pytest *),Bash(go *)"]
+prompt_arg = ""
 default_budget_usd = 0.5
 default_turns = 50
 sandbox = "worktree"

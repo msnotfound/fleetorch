@@ -1,7 +1,7 @@
 name = "claude-sonnet"
 command = "claude"
-args = ["-p", "--model", "sonnet", "--verbose", "--max-turns", "150", "--allowedTools", "Read,Edit,Write,Bash(git *),Bash(npm *),Bash(pnpm *),Bash(node *),Bash(python *),Bash(pytest *),Bash(go *)"]
-prompt_arg = "{prompt}"
+args = ["-p", "{prompt}", "--model", "sonnet", "--verbose", "--max-turns", "150", "--allowedTools", "Read,Edit,Write,Bash(git *),Bash(npm *),Bash(pnpm *),Bash(node *),Bash(python *),Bash(pytest *),Bash(go *)"]
+prompt_arg = ""
 default_budget_usd = 2.0
 default_turns = 150
 sandbox = "worktree"
