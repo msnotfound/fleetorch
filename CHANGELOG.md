@@ -6,6 +6,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.6.4] — 2026-05-30
+
+### Fixed
+- **Dash rewritten** — clean k9s/lazygit-inspired layout. Static status glyphs replace the animated pulse. Inline `/` filter replaces the floating Ctrl-K palette. Inline `[y/N]` confirm replaces the floating kill modal. Killed/done/failed rows are hidden by default — pressing `K` on a task now actually removes the row from view as soon as the kill succeeds, instead of leaving a "killed" row sitting in the list forever. Toggle `a` to show finished tasks if you want them back.
+- Footer keymap is short and on one line: `tab j/k K d / a r ? q`. Press `?` for the full keymap overlay.
+
+### Notes
+- Dash layout no longer collapses the task-list pane into an invisible box on narrow terminals. The previous accreted feature stack (animated pulse + inline sparklines + 3 floating modals + responsive footer math) caused the regression visible in the v0.6.2 screenshot. The new dash drops the visual clutter — sparklines and the animated pulse are gone; budget is shown as a numeric column.
+
 ## [0.6.3] — 2026-05-30
 
 ### Fixed
@@ -226,7 +235,8 @@ Docs-only catch-up. No binary changes from v0.4.4.
 - GoReleaser pipeline → GitHub Releases on every tag push.
 - `curl|sh` installer at `scripts/install.sh`.
 
-[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.6.3...HEAD
+[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.6.4...HEAD
+[0.6.4]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.4
 [0.6.3]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.3
 [0.6.2]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.2
 [0.6.0]: https://github.com/msnotfound/fleetorch/compare/v0.5.0...v0.6.0
