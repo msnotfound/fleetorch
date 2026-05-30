@@ -7,25 +7,24 @@ import (
 	"os"
 )
 
-// serveSocket listens on the entry's control socket and exposes the running
-// PTY to any number of concurrent clients. Each client gets a replay of the
-// ring buffer, a live tee of PTY output, and stdin written to the PTY.
-//
-// Returns when the listener closes (Kill or process exit closes it).
-func (e *entry) serveSocket(path string) {
+func listenSocket(path string) (net.Listener, error) {
 	_ = os.Remove(path) // stale sock from a previous run
 
 	ln, err := net.Listen("unix", path)
 	if err != nil {
-		// Best-effort: socket is optional — attach falls back to read-only follow.
-		// Log to stderr so Windows testers can see whether this is the point of
-		// failure (e.g. AF_UNIX requires Win10 build 1803+, or the sockets
-		// directory does not exist).
-		fmt.Fprintf(os.Stderr, "fleetorch: serveSocket(%s): net.Listen unix failed: %v\n", path, err)
 		debugf("serveSocket(%s): net.Listen failed: %v", path, err)
-		return
+		return nil, fmt.Errorf("net.Listen unix %s: %w", path, err)
 	}
 	debugf("serveSocket(%s): listening", path)
+	return ln, nil
+}
+
+// serveSocket exposes the running PTY to any number of concurrent clients.
+// Each client gets a replay of the ring buffer, a live tee of PTY output, and
+// stdin written to the PTY.
+//
+// Returns when the listener closes (Kill or process exit closes it).
+func (e *entry) serveSocket(path string, ln net.Listener) {
 	e.lnMu.Lock()
 	e.ln = ln
 	e.lnMu.Unlock()
@@ -90,4 +89,3 @@ func (e *entry) handleClient(conn net.Conn) {
 	case <-e.done:
 	}
 }
-

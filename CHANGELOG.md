@@ -6,6 +6,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Fixed
+- fix(worker): surface socket-bind and other late-setup failures via logs --err in detached mode
+
 ## [0.6.0] — 2026-05-29
 
 A large release — 12 features across three areas: runtime/state, policy/orchestration, and TUI/UX.

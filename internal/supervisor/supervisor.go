@@ -156,6 +156,16 @@ func (m *Manager) Spawn(ctx context.Context, spec types.SpawnSpec) (*types.Task,
 		BudgetUSD: spec.BudgetUSD,
 	}
 
+	var socketListener net.Listener
+	if spec.Socket != "" {
+		task.Socket = spec.Socket
+		socketListener, err = listenSocket(spec.Socket)
+		if err != nil {
+			cleanupFailedSpawn(cmd, p, logF)
+			return nil, fmt.Errorf("listen socket: %w", err)
+		}
+	}
+
 	e := &entry{
 		task: task,
 		pty:  p,
@@ -164,6 +174,7 @@ func (m *Manager) Spawn(ctx context.Context, spec types.SpawnSpec) (*types.Task,
 		ring: ring,
 		out:  out,
 		done: make(chan struct{}),
+		ln:   socketListener,
 	}
 
 	m.mu.Lock()
@@ -181,15 +192,13 @@ func (m *Manager) Spawn(ctx context.Context, spec types.SpawnSpec) (*types.Task,
 	// Calls cmd.Wait() which blocks until the child process exits.
 	go e.wait()
 
-	if spec.Socket != "" {
-		task.Socket = spec.Socket
+	if socketListener != nil {
 		// --- Goroutine 3: serveSocket
-		// Creates the Unix-domain socket and accepts attach clients.
-		// On Windows, AF_UNIX requires Win10 build 1803+. If net.Listen fails
-		// (e.g. older Windows, or the sockets directory doesn't exist), it now
-		// logs to stderr instead of silently returning so the failure is visible.
+		// Accepts attach clients on the already-created Unix-domain socket.
+		// The listener is created synchronously above so bind failures are
+		// returned to the detached worker and captured in the err sidecar.
 		debugf("Spawn %s: launching serveSocket at %s", spec.ID, spec.Socket)
-		go e.serveSocket(spec.Socket)
+		go e.serveSocket(spec.Socket, socketListener)
 	}
 
 	if spec.PipeStdoutTo != "" {
@@ -294,6 +303,25 @@ func (m *Manager) get(id string) (*entry, bool) {
 	defer m.mu.RUnlock()
 	e, ok := m.tasks[id]
 	return e, ok
+}
+
+func cleanupFailedSpawn(cmd *pty.Cmd, p pty.Pty, logF *os.File) {
+	if cmd != nil && cmd.Process != nil {
+		_ = signalTerm(cmd.Process)
+		waited := make(chan struct{})
+		go func() {
+			_ = cmd.Wait()
+			close(waited)
+		}()
+		select {
+		case <-waited:
+		case <-time.After(gracefulShutdown):
+			_ = cmd.Process.Kill()
+			<-waited
+		}
+	}
+	_ = p.Close()
+	_ = logF.Close()
 }
 
 func (e *entry) copyPTY() {

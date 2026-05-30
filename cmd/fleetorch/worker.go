@@ -28,11 +28,15 @@ func newWorkerCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			data, err := os.ReadFile(specPath)
 			if err != nil {
-				return fmt.Errorf("read spec: %w", err)
+				err = fmt.Errorf("read spec: %w", err)
+				writeWorkerStartupErr(specPath, "", err)
+				return err
 			}
 			var spec types.SpawnSpec
 			if err := json.Unmarshal(data, &spec); err != nil {
-				return fmt.Errorf("decode spec: %w", err)
+				err = fmt.Errorf("decode spec: %w", err)
+				writeWorkerStartupErr(specPath, spec.ID, err)
+				return err
 			}
 			return runWorker(spec)
 		},
@@ -42,7 +46,7 @@ func newWorkerCmd() *cobra.Command {
 	return cmd
 }
 
-func runWorker(spec types.SpawnSpec) error {
+func runWorker(spec types.SpawnSpec) (retErr error) {
 	paths, err := config.Resolve()
 	if err != nil {
 		// Can't even resolve paths — write to a best-effort temp location.
@@ -54,7 +58,12 @@ func runWorker(spec types.SpawnSpec) error {
 	// error it prints is invisible without redirection. Capturing startup
 	// errors here means `spawn` failures stop being silent.
 	errSink := openWorkerErrLog(paths.DataDir, spec.ID)
-	defer errSink.Close()
+	defer func() {
+		if retErr != nil {
+			ensureWorkerErrNotEmpty(paths.DataDir, spec.ID)
+		}
+		_ = errSink.Close()
+	}()
 
 	debug := os.Getenv("FLEETORCH_DEBUG") == "1"
 	if debug {
