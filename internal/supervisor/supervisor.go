@@ -133,6 +133,17 @@ func (m *Manager) Spawn(ctx context.Context, spec types.SpawnSpec) (*types.Task,
 		cmd.Dir = spec.Worktree
 	}
 
+	// --- Windows-only: override the auto-built command line with our /S /C
+	// wrapped form when maybeWrapShim fired. Without this, Go's argv → cmdline
+	// conversion produces multiple pairs of quotes; cmd.exe then strips the
+	// outer pair (.cmd path) and parses the unquoted path up to the first
+	// space, producing "'C:\Users\MAYANK' is not recognized…". /S /C plus the
+	// outer-wrapped form bypasses that quirk. No-op on Unix (returns "").
+	if cmdLine := buildShimCmdLine(argv); cmdLine != "" {
+		setShimCmdLine(cmd, cmdLine)
+		debugf("Spawn %s: cmdLine override set: %s", spec.ID, cmdLine)
+	}
+
 	// --- Blocking call 2: cmd.Start()
 	// Forks the process. On Windows this also wires the ConPTY handles.
 	if err := cmd.Start(); err != nil {

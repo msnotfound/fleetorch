@@ -6,6 +6,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.6.8] — 2026-05-31
+
+### Fixed
+- **Windows .cmd shim invocation now works for any prompt, including multi-word ones.** The v0.4.7 cmd.exe wrapping was a partial fix: it covered the case where only the shim path needed quoting (single-word prompts). But when an agent argument *also* contained spaces (e.g. a multi-word prompt to `gemini -p "hi there"`), Go's command-line composer produced two quoted segments, triggering cmd.exe's "more than two quotes → strip outer pair" rule. Result: the opening quote of the shim path was stripped, cmd.exe parsed `C:\Users\MAYANK` as the command, and the agent died with `'C:\Users\MAYANK' is not recognized as an internal or external command, operable program or batch file.` The fix uses `cmd.exe /S /C "<entire command line>"` and overrides `SysProcAttr.CmdLine` directly, bypassing Go's automatic quoting. `/S` plus the outer pair tells cmd.exe to strip only the outer quotes and use the inner content verbatim, preserving inner quoting around the shim path and around each multi-word argument.
+
 ## [0.6.7] — 2026-05-30
 
 ### Fixed
@@ -250,7 +255,8 @@ Docs-only catch-up. No binary changes from v0.4.4.
 - GoReleaser pipeline → GitHub Releases on every tag push.
 - `curl|sh` installer at `scripts/install.sh`.
 
-[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.6.7...HEAD
+[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.6.8...HEAD
+[0.6.8]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.8
 [0.6.7]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.7
 [0.6.6]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.6
 [0.6.5]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.5
