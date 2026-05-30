@@ -6,6 +6,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.6.3] — 2026-05-30
+
+### Fixed
+- **Kill now actually kills interactive TUI agents on Unix.** `signalStop` and the SIGKILL escalation in `fleetorch kill` (and the dash kill modal) now target the agent's process **group**, not just the single PID. Gemini, Claude, and other TUIs trap SIGTERM on the main process for clean Ctrl-C handling — killing only the lead PID left node/python children orphaned to init and the agent appearing alive. The PTY-attached child is a session leader (TIOCSCTTY), so a SIGTERM / SIGKILL to `-pgid` reaches every descendant. Windows behavior unchanged (`p.Kill()` remains the strongest signal available without a Job Object).
+
 ## [0.6.2] — 2026-05-30
 
 ### Fixed
@@ -221,7 +226,8 @@ Docs-only catch-up. No binary changes from v0.4.4.
 - GoReleaser pipeline → GitHub Releases on every tag push.
 - `curl|sh` installer at `scripts/install.sh`.
 
-[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.6.3...HEAD
+[0.6.3]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.3
 [0.6.2]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.2
 [0.6.0]: https://github.com/msnotfound/fleetorch/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/msnotfound/fleetorch/compare/v0.4.8...v0.5.0

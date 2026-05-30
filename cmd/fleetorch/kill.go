@@ -53,7 +53,7 @@ func doKill(taskID string, purge bool) error {
 			time.Sleep(100 * time.Millisecond)
 		}
 		if pidAlive(task.PID) {
-			_ = p.Kill()
+			_ = signalKillTree(p)
 		}
 		// The detached worker observes this exit and writes failed/done. Let
 		// that write complete before persisting the user-requested kill state.
