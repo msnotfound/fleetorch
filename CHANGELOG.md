@@ -6,10 +6,18 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-05-30
+
 ### Fixed
-- fix(agents): refresh seeded gemini and claude TOMLs for current CLI versions (gemini needs -p + --skip-trust, claude needs prompt in args not prompt_arg)
-- fix(worker): surface socket-bind and other late-setup failures via logs --err in detached mode
-- fix(editor): refuse to launch interactive editors (vi, vim, nano, emacs, ...) when stdin/stdout is not a TTY
+- **Stale seeded TOMLs** — `gemini.toml` and the `claude-*` TOMLs no longer fail on current CLI versions. Gemini now invokes `--skip-trust --yolo -p {prompt}` (positional args became interactive); Claude variants now pass the prompt through `args` (the new CLI rejects positional prompts when `--print` is set).
+- **Detached worker failures are now visible** — when the worker dies during late setup (e.g. AF_UNIX socket bind fails with EPERM in a sandbox), the error now lands in the `<DataDir>/errors/<task-id>.err` sidecar instead of silently nothing. `fleetorch logs <id> --err` surfaces the real cause.
+- **`fleetorch config edit` / `agent edit` refuse interactive editors on non-TTY** — `vi`/`vim`/`nano`/`emacs`/`ed`/`nvim`/`neovim`/`micro`/`helix`/`hx` are now refused with a clear error when stdin or stdout is not a TTY, instead of launching the editor into an unusable state. Setting `$EDITOR=cat` or any non-interactive command still works.
+
+### Docs
+- TESTING.md updated for v0.6.0 (was stuck at v0.4.0); adds `policy show`, `preset list`, `preset run` to the command coverage; explains `list --json` `status` vs `live_status` semantics.
+- README CLI reference now includes `policy` and `preset` rows.
+- README plugin/marketplace note rewritten to reflect that the remote registry is **not** planned at this time.
+- CHANGELOG compare links updated through v0.6.1.
 
 ## [0.6.0] — 2026-05-29
 
@@ -202,9 +210,12 @@ Docs-only catch-up. No binary changes from v0.4.4.
 - GoReleaser pipeline → GitHub Releases on every tag push.
 - `curl|sh` installer at `scripts/install.sh`.
 
-[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.6.1...HEAD
 [0.6.0]: https://github.com/msnotfound/fleetorch/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/msnotfound/fleetorch/compare/v0.4.8...v0.5.0
+[0.6.1]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.1
+[0.6.0]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.0
+[0.5.0]: https://github.com/msnotfound/fleetorch/releases/tag/v0.5.0
 [0.4.8]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.8
 [0.4.7]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.7
 [0.4.6]: https://github.com/msnotfound/fleetorch/releases/tag/v0.4.6
