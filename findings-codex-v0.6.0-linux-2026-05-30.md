@@ -164,3 +164,37 @@ These were run outside the Codex sandbox with `FLEETORCH_HOME=/tmp/fo-real-agent
 2. Clarify `list --json` semantics for `status` vs `live_status`, or make `status` reflect computed live state if JSON consumers should not inspect both.
 3. Make `config edit` / `agent edit` refuse interactive editors when stdin/stdout are not TTYs unless `$EDITOR` is explicitly set.
 4. Update `TESTING.md`, README CLI reference, README v0.5 plugin note, and changelog compare links for v0.6.0.
+
+## Retest: v0.6.1 real agents
+
+- Date: 2026-05-30
+- fleetorch version tested: `fleetorch version 0.6.1`
+- Test home: `/tmp/fo-real-agents-20260530-rerun`
+- `go test ./...`: PASS
+- `fleetorch doctor`: `AF_UNIX OK`; `codex`, `gemini`, and `claude` found; `agy` not on PATH.
+
+Updated seeded TOMLs:
+
+- `gemini.toml`: `args = ["--skip-trust", "--yolo", "-p", "{prompt}"]`, `prompt_arg = ""`
+- `claude-haiku.toml`: `args = ["-p", "{prompt}", "--model", "haiku", ...]`, `prompt_arg = ""`
+- `codex.toml`: unchanged and still valid.
+
+Real seeded-agent run:
+
+- `fleetorch spawn codex rerun-codex-1 "Print the SHA-256 of the string 'hello'. Output only the hex digest." --repo .`
+  - Status: `done`
+  - Log included expected digest: `2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824`
+  - Worker error log: clean
+  - Worktree status: clean
+- `fleetorch spawn gemini rerun-gemini-1 "Print exactly FLEETORCH_GEMINI_RERUN_OK and exit." --repo .`
+  - Status: `done`
+  - Log included `FLEETORCH_GEMINI_RERUN_OK`
+  - Worker error log: clean
+  - Worktree status: clean
+- `fleetorch spawn claude-haiku rerun-claude-1 "Print exactly FLEETORCH_CLAUDE_RERUN_OK and exit." --repo .`
+  - Status: `done`
+  - Log included `FLEETORCH_CLAUDE_RERUN_OK`
+  - Worker error log: clean
+  - Worktree status: clean
+
+Retest conclusion: the v0.6.1 seeded `gemini` and `claude-haiku` TOMLs fix the v0.6.0 real-agent failures observed above.

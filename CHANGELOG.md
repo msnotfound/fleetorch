@@ -6,8 +6,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.6.2] — 2026-05-30
+
+### Fixed
+- **Dash no longer corrupts when an agent goes interactive.** ANSI cursor-positioning escapes from the agent's stdout are now stripped before the log viewport renders them; SGR color codes are preserved. Resolves a real user report where `gemini` running in interactive mode (stale on-disk TOML) painted its own TUI over the dash frame.
+- **Responsive footer keymap.** Short labels on narrow terminals (< 100 cols), wraps to two lines on very narrow (< 70 cols), full descriptive labels otherwise. No more mid-word wraps like `q:\nquit`.
+
 ### Added
-- `fleetorch agent refresh-builtins` — refreshes user-installed copies of seeded agent TOMLs to match the embedded version in the running binary. Doctor now warns when on-disk builtin TOMLs differ from the shipped version (closes the v0.6.1 issue where users with prior installs kept stale TOMLs after upgrading the binary).
+- **`fleetorch agent refresh-builtins`** — refreshes user-installed copies of seeded agent TOMLs to match the embedded version in the running binary. Closes the v0.6.1 gap where users with prior installs kept stale TOMLs after upgrading the binary.
+- **`doctor` warns when on-disk builtin TOMLs differ from the shipped version**, so the drift is visible without needing to remember to run refresh-builtins.
+- **De-emphasized done / killed / failed task rows in dash**; new `h` key toggles auto-hide of finished tasks (default: shown, dimmed).
 
 ## [0.6.1] — 2026-05-30
 
@@ -213,7 +221,8 @@ Docs-only catch-up. No binary changes from v0.4.4.
 - GoReleaser pipeline → GitHub Releases on every tag push.
 - `curl|sh` installer at `scripts/install.sh`.
 
-[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.2
 [0.6.0]: https://github.com/msnotfound/fleetorch/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/msnotfound/fleetorch/compare/v0.4.8...v0.5.0
 [0.6.1]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.1
