@@ -6,6 +6,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.6.7] — 2026-05-30
+
+### Fixed
+- **`j`/`k` (and arrow keys) now actually scroll the log/diff pane.** The scroll offset was initialized to a "follow latest" sentinel (`99999`) and the render pass clamped it down for display, so `k` decrementing `99999 → 99998 → …` had no visible effect until ~99949 presses later. Each scroll keystroke now normalises the offset to the real `maxOff` before adjusting, so a single `k` actually moves up one line.
+
 ## [0.6.6] — 2026-05-30
 
 ### Fixed
@@ -245,7 +250,8 @@ Docs-only catch-up. No binary changes from v0.4.4.
 - GoReleaser pipeline → GitHub Releases on every tag push.
 - `curl|sh` installer at `scripts/install.sh`.
 
-[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.6.6...HEAD
+[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.6.7...HEAD
+[0.6.7]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.7
 [0.6.6]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.6
 [0.6.5]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.5
 [0.6.4]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.4

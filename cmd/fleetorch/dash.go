@@ -336,9 +336,10 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, tea.Batch(cmds...)
 				}
 			case paneLog:
-				m.logScrollOff++
+				m.logScrollOff = clampScroll(m.logScrollOff, len(m.logLines), m.height) + 1
 			case paneDiff:
-				m.diffScrollOff++
+				diffLen := strings.Count(m.diffContent, "\n") + 1
+				m.diffScrollOff = clampScroll(m.diffScrollOff, diffLen, m.height) + 1
 			}
 			return m, nil
 
@@ -357,13 +358,18 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, tea.Batch(cmds...)
 				}
 			case paneLog:
-				if m.logScrollOff > 0 {
-					m.logScrollOff--
+				off := clampScroll(m.logScrollOff, len(m.logLines), m.height)
+				if off > 0 {
+					off--
 				}
+				m.logScrollOff = off
 			case paneDiff:
-				if m.diffScrollOff > 0 {
-					m.diffScrollOff--
+				diffLen := strings.Count(m.diffContent, "\n") + 1
+				off := clampScroll(m.diffScrollOff, diffLen, m.height)
+				if off > 0 {
+					off--
 				}
+				m.diffScrollOff = off
 			}
 			return m, nil
 
@@ -873,6 +879,28 @@ func colorDiffLine(line string) string {
 	default:
 		return styleMuted.Render(line)
 	}
+}
+
+// clampScroll normalises a possibly-sentinel scroll offset (e.g. 99999, meaning
+// "follow latest") to the real maxOff so that subsequent ±1 increments behave.
+// totalLines is the total content length; modelHeight is the dash model's
+// height — visible rows in a pane ≈ modelHeight - 7 (header, borders, footer).
+func clampScroll(off, totalLines, modelHeight int) int {
+	visibleH := modelHeight - 7
+	if visibleH < 1 {
+		visibleH = 1
+	}
+	maxOff := totalLines - visibleH
+	if maxOff < 0 {
+		maxOff = 0
+	}
+	if off > maxOff {
+		off = maxOff
+	}
+	if off < 0 {
+		off = 0
+	}
+	return off
 }
 
 // clipVisible trims s to at most w visible columns while preserving ANSI SGR
