@@ -6,6 +6,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Fixed
+- **fix(dash): strip ANSI cursor-positioning escapes from log viewport** so interactive agents (e.g. gemini in interactive mode) cannot corrupt the dash layout. SGR color codes preserved.
+- **fix(dash): footer keymap is now responsive** — short labels on narrow terminals (< 100 cols), wraps to two lines on very narrow (< 70 cols), full labels otherwise.
+
+### Added
+- **feat(dash): visually de-emphasize done/killed/failed task rows**; `h` key toggles auto-hide of finished tasks.
+
 ## [0.6.1] — 2026-05-30
 
 ### Fixed

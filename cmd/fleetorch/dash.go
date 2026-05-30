@@ -160,6 +160,9 @@ type dashModel struct {
 	diffContent   string
 	diffLastFetch time.Time
 	diffScrollOff int
+
+	// hide finished tasks (done/killed/failed) from the task list
+	hideFinished bool
 }
 
 func newDashModel(st *store.Store, cputimeDir string) dashModel {
@@ -299,8 +302,14 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "j", "down":
 			switch m.activePane {
 			case paneTaskList:
-				if m.selected < len(m.tasks)-1 {
-					m.selected++
+				next := m.selected + 1
+				if m.hideFinished {
+					for next < len(m.tasks) && isFinished(m.liveStatuses[m.tasks[next].ID]) {
+						next++
+					}
+				}
+				if next < len(m.tasks) {
+					m.selected = next
 					m.logLines = nil
 					m.logScrollOff = 99999
 					m.diffScrollOff = 0
@@ -320,8 +329,14 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "k", "up":
 			switch m.activePane {
 			case paneTaskList:
-				if m.selected > 0 {
-					m.selected--
+				prev := m.selected - 1
+				if m.hideFinished {
+					for prev >= 0 && isFinished(m.liveStatuses[m.tasks[prev].ID]) {
+						prev--
+					}
+				}
+				if prev >= 0 {
+					m.selected = prev
 					m.logLines = nil
 					m.logScrollOff = 99999
 					m.diffScrollOff = 0
@@ -388,6 +403,21 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.logFoldMode = !m.logFoldMode
 			}
 			return m, nil
+
+		case "h":
+			m.hideFinished = !m.hideFinished
+			// If the selected task just became hidden, advance to nearest visible task.
+			if m.hideFinished && len(m.tasks) > 0 && isFinished(m.liveStatuses[m.tasks[m.selected].ID]) {
+				for i, t := range m.tasks {
+					if !isFinished(m.liveStatuses[t.ID]) {
+						m.selected = i
+						m.logLines = nil
+						m.logScrollOff = 99999
+						break
+					}
+				}
+			}
+			return m, nil
 		}
 
 	case pulseTickMsg:
@@ -418,7 +448,12 @@ func (m dashModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			raw := readLogTail(m.tasks[m.selected].Log, logTailBytes)
 			trimmed := strings.TrimRight(raw, "\n")
 			if trimmed != "" {
-				m.logLines = strings.Split(trimmed, "\n")
+				rawLines := strings.Split(trimmed, "\n")
+				sanitized := make([]string, len(rawLines))
+				for i, l := range rawLines {
+					sanitized[i] = sanitizeForViewport(l)
+				}
+				m.logLines = sanitized
 			} else {
 				m.logLines = nil
 			}
@@ -560,14 +595,48 @@ func (m dashModel) View() string {
 	var keymapStr string
 	switch {
 	case m.activePane == paneDiff:
-		keymapStr = "tab: switch  •  j/k: scroll diff  •  g/G: top/bottom  •  d: hide diff  •  q: quit"
+		switch {
+		case m.width >= 100:
+			keymapStr = "tab: switch  •  j/k: scroll diff  •  g/G: top/bottom  •  d: hide diff  •  q: quit"
+		case m.width >= 70:
+			keymapStr = "tab: ⇄  •  j/k: ↑↓  •  g/G: top/bot  •  d: diff  •  q: quit"
+		default:
+			keymapStr = "tab:⇄ j/k:↑↓ g/G:top/bot\nd:diff q:quit"
+		}
 	case m.activePane == paneTaskList:
-		keymapStr = "tab: switch  •  j/k: select  •  K: kill  •  d: toggle diff  •  ctrl+k: find  •  r: refresh  •  q: quit"
+		hideLabel := "h: hide finished"
+		hideLabelShort := "h: hide"
+		if m.hideFinished {
+			hideLabel = "h: show finished"
+			hideLabelShort = "h: show"
+		}
+		switch {
+		case m.width >= 100:
+			keymapStr = "tab: switch  •  j/k: select  •  K: kill  •  d: toggle diff  •  ctrl+k: find  •  r: refresh  •  " + hideLabel + "  •  q: quit"
+		case m.width >= 70:
+			keymapStr = "tab: ⇄  •  j/k: ↑↓  •  K: kill  •  d: diff  •  C-K: find  •  r: ↻  •  " + hideLabelShort + "  •  q: quit"
+		default:
+			keymapStr = "tab:⇄ j/k:↑↓ K:kill d:diff\nC-K:find r:↻ " + hideLabelShort + " q:quit"
+		}
 	default: // paneLog
 		if m.diffVisible {
-			keymapStr = "tab: switch  •  j/k: scroll  •  f: fold  •  d: toggle diff  •  g/G: top/bottom  •  q: quit"
+			switch {
+			case m.width >= 100:
+				keymapStr = "tab: switch  •  j/k: scroll  •  f: fold  •  d: toggle diff  •  g/G: top/bottom  •  q: quit"
+			case m.width >= 70:
+				keymapStr = "tab: ⇄  •  j/k: ↑↓  •  f: fold  •  d: diff  •  g/G: top/bot  •  q: quit"
+			default:
+				keymapStr = "tab:⇄ j/k:↑↓ f:fold\nd:diff q:quit"
+			}
 		} else {
-			keymapStr = "tab: switch  •  j/k: scroll  •  f: fold  •  g/G: top/bottom  •  q: quit"
+			switch {
+			case m.width >= 100:
+				keymapStr = "tab: switch  •  j/k: scroll  •  f: fold  •  g/G: top/bottom  •  q: quit"
+			case m.width >= 70:
+				keymapStr = "tab: ⇄  •  j/k: ↑↓  •  f: fold  •  g/G: top/bot  •  q: quit"
+			default:
+				keymapStr = "tab:⇄ j/k:↑↓\nf:fold q:quit"
+			}
 		}
 	}
 	keymapLine := styleMuted.Render(keymapStr)
@@ -775,6 +844,13 @@ func (m dashModel) renderTaskList(w, h int) string {
 	var b strings.Builder
 	for i, t := range m.tasks {
 		live := m.liveStatuses[t.ID]
+		finished := isFinished(live)
+
+		// Filter finished rows when hide is active.
+		if m.hideFinished && finished {
+			continue
+		}
+
 		dot := pulseDot(m.pulseFrame, live)
 
 		burningTag := ""
@@ -782,11 +858,18 @@ func (m dashModel) renderTaskList(w, h int) string {
 			burningTag = " " + styleIdle.Render("burning")
 		}
 
+		idStr := truncate(t.ID, 12)
 		statusStr := styleForStatus(live).Render(fmt.Sprintf("%-8s", string(live)))
+		// Visually de-emphasize finished rows.
+		if finished {
+			idStr = styleMuted.Render(idStr)
+			statusStr = styleMuted.Render(fmt.Sprintf("%-8s", string(live)))
+		}
+
 		spark := sparklineStr(m.burnHistory[t.ID])
 		bar := budgetBar(t.BudgetUSD)
 
-		line := dot + " " + truncate(t.ID, 12) + "  " +
+		line := dot + " " + idStr + "  " +
 			truncate(t.Agent, 10) + "  " +
 			statusStr + burningTag + "  " +
 			fmt.Sprintf("%-6s", age(t.StartedAt)) + "  " +
@@ -1147,6 +1230,76 @@ func readLogTail(path string, n int) string {
 		}
 	}
 	return string(buf)
+}
+
+// isFinished returns true for terminal task states (done, failed, dead/killed).
+func isFinished(s types.Status) bool {
+	return s == types.StatusDone || s == types.StatusFailed || s == types.StatusDead
+}
+
+// sanitizeForViewport strips ANSI cursor-positioning and control sequences that
+// would corrupt the TUI layout, while preserving SGR color/style codes (ESC[…m).
+func sanitizeForViewport(s string) string {
+	if !strings.ContainsRune(s, '\x1b') {
+		return s // fast path
+	}
+	var out strings.Builder
+	out.Grow(len(s))
+	i := 0
+	for i < len(s) {
+		b := s[i]
+		if b != '\x1b' {
+			out.WriteByte(b)
+			i++
+			continue
+		}
+		if i+1 >= len(s) {
+			i++
+			continue
+		}
+		switch s[i+1] {
+		case '[': // CSI sequence
+			j := i + 2
+			// Consume parameter bytes (0x30–0x3F: digits, ;, <, =, >, ?)
+			for j < len(s) && s[j] >= 0x30 && s[j] <= 0x3F {
+				j++
+			}
+			// Consume intermediate bytes (0x20–0x2F)
+			for j < len(s) && s[j] >= 0x20 && s[j] <= 0x2F {
+				j++
+			}
+			if j < len(s) && s[j] == 'm' {
+				// SGR — keep color/style codes
+				out.WriteString(s[i : j+1])
+			}
+			// All other CSI sequences (cursor moves, clears, etc.) are dropped.
+			if j < len(s) {
+				j++
+			}
+			i = j
+		case ']': // OSC sequence — consume until BEL or ST
+			j := i + 2
+			for j < len(s) {
+				if s[j] == '\x07' { // BEL
+					j++
+					break
+				}
+				if s[j] == '\x1b' && j+1 < len(s) && s[j+1] == '\\' { // ST
+					j += 2
+					break
+				}
+				j++
+			}
+			i = j
+		case '(': // charset designator: ESC ( x
+			i += 3
+		case 'c': // full reset (RIS)
+			i += 2
+		default:
+			i++ // skip lone ESC
+		}
+	}
+	return out.String()
 }
 
 func doDashTUI() error {
