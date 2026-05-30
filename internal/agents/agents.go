@@ -20,6 +20,31 @@ var ErrUnknownAgent = errors.New("unknown agent type")
 //go:embed builtin/*.toml
 var defaultAgents embed.FS
 
+// BuiltinFiles returns embedded default agent TOMLs keyed by agent name.
+func BuiltinFiles() (map[string][]byte, error) {
+	builtins := map[string][]byte{}
+	err := fs.WalkDir(defaultAgents, "builtin", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || filepath.Ext(path) != ".toml" {
+			return nil
+		}
+
+		contents, err := defaultAgents.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+		builtins[name] = contents
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return builtins, nil
+}
+
 // AgentType is a local renderable view of types.AgentType.
 //
 // Registry stores shared types.AgentType values; this named type exists because

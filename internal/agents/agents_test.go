@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
@@ -84,6 +85,30 @@ func TestSeedDefaultsPopulatesEmptyDir(t *testing.T) {
 	} {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			t.Errorf("expected %s to be written: %v", name, err)
+		}
+	}
+}
+
+func TestBuiltinFilesListsEmbeddedDefaults(t *testing.T) {
+	builtins, err := BuiltinFiles()
+	if err != nil {
+		t.Fatalf("BuiltinFiles: %v", err)
+	}
+
+	for _, name := range []string{
+		"agy",
+		"codex",
+		"gemini",
+		"claude-haiku",
+		"claude-sonnet",
+		"claude-opus",
+	} {
+		contents, ok := builtins[name]
+		if !ok {
+			t.Fatalf("BuiltinFiles missing %q", name)
+		}
+		if !bytes.Contains(contents, []byte(`name = "`+name+`"`)) {
+			t.Fatalf("BuiltinFiles[%q] = %q, want matching name field", name, contents)
 		}
 	}
 }

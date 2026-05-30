@@ -6,6 +6,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Added
+- `fleetorch agent refresh-builtins` — refreshes user-installed copies of seeded agent TOMLs to match the embedded version in the running binary. Doctor now warns when on-disk builtin TOMLs differ from the shipped version (closes the v0.6.1 issue where users with prior installs kept stale TOMLs after upgrading the binary).
+
 ## [0.6.1] — 2026-05-30
 
 ### Fixed

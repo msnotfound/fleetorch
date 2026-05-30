@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -176,6 +177,7 @@ func collectReport() (*Report, error) {
 	r.State.LogBytes = dirSize(paths.LogDir)
 
 	r.Warnings = collectWarnings(r)
+	r.Warnings = append(r.Warnings, staleBuiltinAgentWarnings(paths.AgentsDir, r.Agents.Installed)...)
 	return r, nil
 }
 
@@ -265,6 +267,27 @@ func collectWarnings(r *Report) []string {
 		warns = append(warns, "no agent TOMLs installed; run `fleetorch agent list` to seed defaults")
 	}
 
+	return warns
+}
+
+func staleBuiltinAgentWarnings(agentsDir string, installed []string) []string {
+	builtins, err := agents.BuiltinFiles()
+	if err != nil {
+		return nil
+	}
+
+	var warns []string
+	for _, name := range installed {
+		shipped, ok := builtins[name]
+		if !ok {
+			continue
+		}
+		onDisk, err := os.ReadFile(filepath.Join(agentsDir, name+".toml"))
+		if err != nil || bytes.Equal(onDisk, shipped) {
+			continue
+		}
+		warns = append(warns, fmt.Sprintf("warn: builtin agent %q on disk differs from shipped builtin. Run `fleetorch agent refresh-builtins` to update, or `agent edit %q` to inspect.", name, name))
+	}
 	return warns
 }
 
