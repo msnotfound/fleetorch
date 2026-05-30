@@ -6,6 +6,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.6.6] — 2026-05-30
+
+### Fixed
+- **Each dash pane now has the equivalent of CSS `overflow: hidden`.** Wraps every pane render in `lipgloss.MaxWidth + MaxHeight`, so the box is hard-clipped to its allotted dimensions regardless of what's inside. Belt-and-suspenders with the v0.6.5 line clipping: even if a future code path emits something past the pane bounds, the outer clip catches it and the neighbouring panes stay anchored.
+
 ## [0.6.5] — 2026-05-30
 
 ### Fixed
@@ -240,7 +245,8 @@ Docs-only catch-up. No binary changes from v0.4.4.
 - GoReleaser pipeline → GitHub Releases on every tag push.
 - `curl|sh` installer at `scripts/install.sh`.
 
-[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.6.5...HEAD
+[Unreleased]: https://github.com/msnotfound/fleetorch/compare/v0.6.6...HEAD
+[0.6.6]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.6
 [0.6.5]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.5
 [0.6.4]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.4
 [0.6.3]: https://github.com/msnotfound/fleetorch/releases/tag/v0.6.3

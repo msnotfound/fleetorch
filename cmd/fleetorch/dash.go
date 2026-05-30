@@ -471,6 +471,14 @@ func (m dashModel) View() string {
 
 	header := styleAccent.Render("fleetorch") + styleMuted.Render("  "+time.Now().Format("15:04:05"))
 
+	// clip is the CSS "overflow: hidden" equivalent — strictly cap the rendered
+	// box of a pane so nothing inside it (long lines, runaway log content) can
+	// escape and push neighbouring panes off-screen. The border adds 2 cols and
+	// 2 rows on top of the content area, so the outer clip is (w+2, innerH+2).
+	clip := func(w int) lipgloss.Style {
+		return lipgloss.NewStyle().MaxWidth(w + 2).MaxHeight(innerH + 2)
+	}
+
 	var body string
 	if m.diffVisible {
 		avail := m.width - 6
@@ -481,9 +489,9 @@ func (m dashModel) View() string {
 		centerW := avail / 2
 		rightW := avail - leftW - centerW
 		body = lipgloss.JoinHorizontal(lipgloss.Top,
-			m.paneStyle(paneList).Width(leftW).Height(innerH).Render(m.renderList(leftW, innerH)),
-			m.paneStyle(paneLog).Width(centerW).Height(innerH).Render(m.renderLog(centerW, innerH)),
-			m.paneStyle(paneDiff).Width(rightW).Height(innerH).Render(m.renderDiff(rightW, innerH)),
+			clip(leftW).Render(m.paneStyle(paneList).Width(leftW).Height(innerH).Render(m.renderList(leftW, innerH))),
+			clip(centerW).Render(m.paneStyle(paneLog).Width(centerW).Height(innerH).Render(m.renderLog(centerW, innerH))),
+			clip(rightW).Render(m.paneStyle(paneDiff).Width(rightW).Height(innerH).Render(m.renderDiff(rightW, innerH))),
 		)
 	} else {
 		avail := m.width - 4
@@ -493,8 +501,8 @@ func (m dashModel) View() string {
 		leftW := avail * 2 / 5
 		rightW := avail - leftW
 		body = lipgloss.JoinHorizontal(lipgloss.Top,
-			m.paneStyle(paneList).Width(leftW).Height(innerH).Render(m.renderList(leftW, innerH)),
-			m.paneStyle(paneLog).Width(rightW).Height(innerH).Render(m.renderLog(rightW, innerH)),
+			clip(leftW).Render(m.paneStyle(paneList).Width(leftW).Height(innerH).Render(m.renderList(leftW, innerH))),
+			clip(rightW).Render(m.paneStyle(paneLog).Width(rightW).Height(innerH).Render(m.renderLog(rightW, innerH))),
 		)
 	}
 
