@@ -1,11 +1,15 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
+
+	"github.com/msnotfound/fleetorch/internal/config"
 )
 
 // Per-task worker-side error log. Lives at <DataDir>/errors/<id>.err.
@@ -57,6 +61,39 @@ func writeWorkerError(dataDir, taskID string, err error) {
 	}
 	defer f.Close()
 	fmt.Fprintf(f, "[%s] %s\n", time.Now().UTC().Format(time.RFC3339), err.Error())
+}
+
+func writeWorkerStartupErr(specPath, taskID string, err error) {
+	if err == nil {
+		return
+	}
+	if taskID == "" {
+		base := filepath.Base(specPath)
+		if base != "." && base != string(filepath.Separator) {
+			taskID = strings.TrimSuffix(base, filepath.Ext(base))
+		}
+	}
+	if taskID == "" {
+		taskID = "unknown-worker"
+	}
+	paths, resolveErr := config.Resolve()
+	if resolveErr != nil {
+		writeWorkerError(os.TempDir(), taskID, fmt.Errorf("%v (config.Resolve for worker err log failed: %w)", err, resolveErr))
+		return
+	}
+	writeWorkerError(paths.DataDir, taskID, err)
+}
+
+func ensureWorkerErrNotEmpty(dataDir, taskID string) {
+	if taskID == "" {
+		taskID = "unknown-worker"
+	}
+	errPath := filepath.Join(dataDir, workerErrSubdir, taskID+".err")
+	stat, err := os.Stat(errPath)
+	if err == nil && stat.Size() > 0 {
+		return
+	}
+	writeWorkerError(dataDir, taskID, errors.New("(unknown worker failure — task died before any output)"))
 }
 
 type nopWriteCloser struct{}

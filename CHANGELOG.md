@@ -8,6 +8,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Fixed
 - fix(agents): refresh seeded gemini and claude TOMLs for current CLI versions (gemini needs -p + --skip-trust, claude needs prompt in args not prompt_arg)
+- fix(worker): surface socket-bind and other late-setup failures via logs --err in detached mode
 
 ## [0.6.0] — 2026-05-29
 

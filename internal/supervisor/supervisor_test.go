@@ -117,3 +117,32 @@ func TestSpawnBareCommandNameResolves(t *testing.T) {
 		t.Fatalf("Wait: %v", err)
 	}
 }
+
+func TestSpawnReturnsSocketListenError(t *testing.T) {
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "socket-listen.log")
+	socketPath := filepath.Join(dir, "missing", "task.sock")
+
+	m := New(config.Paths{DataDir: dir, LogDir: dir})
+	_, err := m.Spawn(context.Background(), types.SpawnSpec{
+		ID: "socket-listen-test",
+		Agent: types.AgentType{
+			Name:    "sh",
+			Command: "sh",
+			Args:    []string{"-c", "sleep 60"},
+		},
+		Log:    logPath,
+		Socket: socketPath,
+	})
+	if err == nil {
+		_ = m.Kill("socket-listen-test")
+		t.Fatalf("expected Spawn to return socket listen error")
+	}
+	if !strings.Contains(err.Error(), "listen socket") {
+		t.Fatalf("expected listen socket error, got: %v", err)
+	}
+	if m.IsAlive("socket-listen-test") {
+		_ = m.Kill("socket-listen-test")
+		t.Fatalf("task still alive after socket listen failure")
+	}
+}
